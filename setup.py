@@ -9,7 +9,6 @@ requirements = [
     'numpy',
     'jsonlines',
     'sentencepiece',
-    '--find-links https://download.pytorch.org/whl/torch_stable.html'
     'torch>=1.6.0+cu124',
     'torchvision',
     'torchaudio',
