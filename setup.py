@@ -9,8 +9,8 @@ requirements = [
     'numpy',
     'jsonlines',
     'sentencepiece',
-    '--extra-index-url https://download.pytorch.org/whl/cu126'
-    'torch>=1.6.0',
+    '--find-links https://download.pytorch.org/whl/torch_stable.html'
+    'torch>=1.6.0+cu124',
     'torchvision',
     'torchaudio',
     'pytorch_pretrained_bert'
