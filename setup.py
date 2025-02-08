@@ -9,7 +9,7 @@ requirements = [
     'numpy',
     'jsonlines',
     'sentencepiece',
-    'torch',
+    'torch>=2.6.0+cu126',
     'torchvision',
     'torchaudio',
     'pytorch_pretrained_bert'
