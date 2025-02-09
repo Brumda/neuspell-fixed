@@ -46,12 +46,12 @@ def load_data(base_path, corr_file, incorr_file):
         try:
             assert len(x_split) == len(y_split)
         except AssertionError:
-            print("# tokens in corr and incorr mismatch. retaining and trimming to min len.")
-            print(x_split, y_split)
+            # print("# tokens in corr and incorr mismatch. retaining and trimming to min len.")
+            # print(x_split, y_split)
             mn = min([len(x_split), len(y_split)])
             corr_data[i] = " ".join(x_split[:mn])
             incorr_data[i] = " ".join(y_split[:mn])
-            print(corr_data[i], incorr_data[i])
+            # print(corr_data[i], incorr_data[i])
 
     # return as pairs
     data = []

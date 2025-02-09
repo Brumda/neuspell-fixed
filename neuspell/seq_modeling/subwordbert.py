@@ -1,4 +1,6 @@
 import time
+import io
+import sys
 
 from .evals import get_metrics
 from .helpers import *
@@ -22,7 +24,7 @@ def load_pretrained(model, checkpoint_path, optimizer=None, device='cuda'):
     else:
         map_location = 'cpu'
     print(f"Loading model params from checkpoint dir: {checkpoint_path}")
-    checkpoint_data = torch.load(os.path.join(checkpoint_path, "model.pth.tar"), map_location=map_location, weights_only=False)
+    checkpoint_data = torch.load(os.path.join(checkpoint_path, "model.pth.tar"), map_location=map_location)
 
     checkpoint_data.get("model_state_dict", {}).pop("bert_model.embeddings.position_ids", None)
 
@@ -90,6 +92,15 @@ def model_inference(model, data, topk, device, batch_size=16, vocab_=None):
             sentence string (would be split at whitespaces)
     topk: how many of the topk softmax predictions are considered for metrics calculations
     """
+
+    original_stdout = sys.stdout
+    output_string = io.StringIO()
+    sys.stdout = output_string
+
+
+
+
+
     if vocab_ is not None:
         vocab = vocab_
     print("###############################################")
@@ -182,4 +193,7 @@ def model_inference(model, data, topk, device, batch_size=16, vocab_=None):
     print(f"accuracy is {(_corr2corr + _incorr2corr) / (_corr2corr + _corr2incorr + _incorr2corr + _incorr2incorr)}")
     print(f"word correction rate is {(_incorr2corr) / (_incorr2corr + _incorr2incorr)}")
     print("###############################################")
-    return
+
+    sys.stdout = original_stdout
+
+    return output_string.getvalue()
