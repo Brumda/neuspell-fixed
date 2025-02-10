@@ -2,6 +2,7 @@ import os
 import time
 from typing import List
 
+import wandb
 import numpy as np
 import torch
 from pytorch_pretrained_bert import BertAdam
@@ -18,19 +19,18 @@ from .seq_modeling.subwordbert import load_model, load_pretrained, model_predict
 
 class CorrectorSubwordBert(Corrector):
 
-    def __init__(self, tokenize=True, pretrained=False, device="cpu"):
+    def __init__(self, tokenize=True, pretrained=False, device="cpu", epoch=0):
         super(CorrectorSubwordBert, self).__init__()
         self.tokenize = tokenize
         self.pretrained = pretrained
         self.device = device
+        self.epoch = epoch
 
         self.ckpt_path = None
         self.vocab_path, self.weights_path = "", ""
         self.model, self.vocab = None, None
 
         if self.pretrained:
-            print(self.device)
-            print(torch.cuda.is_available())
             self.from_pretrained(self.ckpt_path)
 
     def __model_status(self):
@@ -49,7 +49,9 @@ class CorrectorSubwordBert(Corrector):
         self.model = load_model(self.vocab)
         self.weights_path = weights if weights else self.ckpt_path
         print(f"loading pretrained weights from path:{self.weights_path}")
-        self.model = load_pretrained(self.model, self.weights_path, device=self.device)
+        self.model, self.epoch = load_pretrained(self.model, self.weights_path, device=self.device)
+        if not ckpt_path:
+            self.epoch = 1
         return
 
     def set_device(self, device='cpu'):
@@ -110,11 +112,11 @@ class CorrectorSubwordBert(Corrector):
             print(x, y, z)
             test_data = load_data(x, y, z)
             res = model_inference(self.model,
-                                test_data,
-                                topk=1,
-                                device=self.device,
-                                batch_size=batch_size,
-                                vocab_=self.vocab)
+                                  test_data,
+                                  topk=1,
+                                  device=self.device,
+                                  batch_size=batch_size,
+                                  vocab_=self.vocab)
         return res
 
     def model_size(self):
@@ -122,6 +124,7 @@ class CorrectorSubwordBert(Corrector):
         return get_model_nparams(self.model)
 
     def finetune(self, clean_file, corrupt_file, validation_split=0.2, n_epochs=2, new_vocab_list=[]):
+        wandb.init(project="neuspell", name="bert-checker",)
 
         if new_vocab_list:
             raise NotImplementedError("Do not currently support modifying output vocabulary of the models")
@@ -142,7 +145,7 @@ class CorrectorSubwordBert(Corrector):
         TRAIN_BATCH_SIZE, VALID_BATCH_SIZE = 16, 32
         GRADIENT_ACC = 4
         DEVICE = self.device
-        START_EPOCH, N_EPOCHS = 0, n_epochs
+        START_EPOCH, N_EPOCHS = self.epoch, n_epochs + self.epoch
         CHECKPOINT_PATH = os.path.join(self.ckpt_path, "finetuned_model")
         VOCAB_PATH = os.path.join(CHECKPOINT_PATH, "vocab.pkl")
         if not os.path.exists(CHECKPOINT_PATH):
@@ -180,6 +183,7 @@ class CorrectorSubwordBert(Corrector):
 
         # train and eval
         for epoch_id in range(START_EPOCH, N_EPOCHS + 1):
+            e_st_time = time.time()
             # check for patience
             if (epoch_id - argmax_dev_acc) > patience:
                 print("patience count reached. early stopping initiated")
@@ -250,13 +254,16 @@ class CorrectorSubwordBert(Corrector):
                             ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
                             [time.time() - st_time, batch_loss, train_loss / (batch_id + 1), batch_acc,
                              train_acc / train_acc_count])
+                wandb.log({f"Batch Loss e_{epoch_id}": batch_loss, f"Batch Accuracy e_{epoch_id}": batch_acc})
                 if batch_id == 0 or (batch_id + 1) % 5000 == 0:
                     nb = int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE))
                     progress_write_file.write(f"{batch_id + 1}/{nb}\n")
                     progress_write_file.write(
                         f"batch_time: {time.time() - st_time}, avg_batch_loss: {train_loss / (batch_id + 1)}, avg_batch_acc: {train_acc / train_acc_count}\n")
                     progress_write_file.flush()
-            print(f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)}")
+
+            print(f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)},  Epoch {epoch_id} time: {time.time() - e_st_time}")
+            wandb.log({f"Epoch {epoch_id} train_loss": train_loss / (batch_id + 1), f"Epoch {epoch_id} train time": time.time() - e_st_time})
 
             # valid loss
             valid_loss = 0.
@@ -308,12 +315,12 @@ class CorrectorSubwordBert(Corrector):
                         f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
                     progress_write_file.flush()
             print(f"\nEpoch {epoch_id} valid_loss: {valid_loss / (batch_id + 1)}")
-
+            wandb.log({f"Epoch {epoch_id} valid_loss": valid_loss / (batch_id + 1)})
             # save model, optimizer and test_predictions if val_acc is improved
             if valid_acc >= max_dev_acc:
                 # to file
-                name = "model-epoch{}.pth.tar".format(epoch_id)
-                # name = "model.pth.tar".format(epoch_id)
+                # name = "model-epoch{}.pth.tar".format(epoch_id)
+                name = "model.pth.tar"
                 torch.save({
                     'epoch_id': epoch_id,
                     'max_dev_acc': max_dev_acc,
@@ -328,4 +335,6 @@ class CorrectorSubwordBert(Corrector):
                 max_dev_acc, argmax_dev_acc = valid_acc, epoch_id
 
         print(f"Model and logs saved at {os.path.join(CHECKPOINT_PATH, 'model.pth.tar')}")
+        wandb.finish()
+
         return

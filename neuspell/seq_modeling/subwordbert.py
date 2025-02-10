@@ -37,7 +37,7 @@ def load_pretrained(model, checkpoint_path, optimizer=None, device='cuda'):
     if optimizer is not None:
         return model, optimizer, max_dev_acc, argmax_dev_acc
 
-    return model
+    return model, checkpoint_data['epoch_id']
 
 
 def model_predictions(model, data, vocab, device, batch_size=16):
