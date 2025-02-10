@@ -39,7 +39,8 @@ class CorrectorSubwordBert(Corrector):
 
     def from_pretrained(self, ckpt_path=None, vocab="", weights=""):
         CHECKPOINT = "/checkpoints/subwordbert-probwordnoise/finetuned_model/"
-        self.ckpt_path = DEFAULT_DATA_PATH + CHECKPOINT + ckpt_path if ckpt_path else ARXIV_CHECKPOINTS["subwordbert-probwordnoise"]
+        self.ckpt_path = DEFAULT_DATA_PATH + CHECKPOINT + ckpt_path if ckpt_path else ARXIV_CHECKPOINTS[
+            "subwordbert-probwordnoise"]
         self.vocab_path = vocab if vocab else os.path.join(self.ckpt_path, "vocab.pkl")
         if not os.path.isfile(self.vocab_path):  # leads to "FileNotFoundError"
             download_pretrained_model(self.ckpt_path)
@@ -124,8 +125,6 @@ class CorrectorSubwordBert(Corrector):
         return get_model_nparams(self.model)
 
     def finetune(self, clean_file, corrupt_file, validation_split=0.2, n_epochs=2, new_vocab_list=[]):
-        wandb.init(project="neuspell", name="bert-checker",)
-
         if new_vocab_list:
             raise NotImplementedError("Do not currently support modifying output vocabulary of the models")
         print("tuning...")
@@ -262,8 +261,10 @@ class CorrectorSubwordBert(Corrector):
                         f"batch_time: {time.time() - st_time}, avg_batch_loss: {train_loss / (batch_id + 1)}, avg_batch_acc: {train_acc / train_acc_count}\n")
                     progress_write_file.flush()
 
-            print(f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)},  Epoch {epoch_id} time: {time.time() - e_st_time}")
-            wandb.log({f"Epoch {epoch_id} train_loss": train_loss / (batch_id + 1), f"Epoch {epoch_id} train time": time.time() - e_st_time})
+            print(
+                f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)},  Epoch {epoch_id} time: {time.time() - e_st_time}")
+            wandb.log({f"Epoch {epoch_id} train_loss": train_loss / (batch_id + 1),
+                       f"Epoch {epoch_id} train time": time.time() - e_st_time})
 
             # valid loss
             valid_loss = 0.
