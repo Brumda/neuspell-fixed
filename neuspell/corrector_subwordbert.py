@@ -18,7 +18,6 @@ from .seq_modeling.subwordbert import load_model, load_pretrained, model_predict
 
 
 class CorrectorSubwordBert(Corrector):
-
     def __init__(self, tokenize=True, pretrained=False, device="cpu", epoch=0):
         super(CorrectorSubwordBert, self).__init__()
         self.tokenize = tokenize
@@ -38,12 +37,11 @@ class CorrectorSubwordBert(Corrector):
         return
 
     def from_pretrained(self, ckpt_path=None, vocab="", weights=""):
-        CHECKPOINT = "/checkpoints/subwordbert-probwordnoise/finetuned_model/"
-        self.ckpt_path = DEFAULT_DATA_PATH + CHECKPOINT + ckpt_path if ckpt_path else ARXIV_CHECKPOINTS[
+        self.ckpt_path = os.path.join(DEFAULT_DATA_PATH, ckpt_path) if ckpt_path else ARXIV_CHECKPOINTS[
             "subwordbert-probwordnoise"]
         self.vocab_path = vocab if vocab else os.path.join(self.ckpt_path, "vocab.pkl")
         if not os.path.isfile(self.vocab_path):  # leads to "FileNotFoundError"
-            download_pretrained_model(self.ckpt_path)
+            download_pretrained_model(self.ckpt_path)  # broken
         print(f"loading vocab from path:{self.vocab_path}")
         self.vocab = load_vocab_dict(self.vocab_path)
         print(f"initializing model")
@@ -52,7 +50,7 @@ class CorrectorSubwordBert(Corrector):
         print(f"loading pretrained weights from path:{self.weights_path}")
         self.model, self.epoch = load_pretrained(self.model, self.weights_path, device=self.device)
         if not ckpt_path:
-            self.epoch = 1
+            self.epoch = 0
         return
 
     def set_device(self, device='cpu'):
@@ -112,13 +110,13 @@ class CorrectorSubwordBert(Corrector):
         for x, y, z in zip([""], [clean_file], [corrupt_file]):
             print(x, y, z)
             test_data = load_data(x, y, z)
-            res = model_inference(self.model,
-                                  test_data,
-                                  topk=1,
-                                  device=self.device,
-                                  batch_size=batch_size,
-                                  vocab_=self.vocab)
-        return res
+            res, acc = model_inference(self.model,
+                                       test_data,
+                                       topk=1,
+                                       device=self.device,
+                                       batch_size=batch_size,
+                                       vocab_=self.vocab)
+        return res, acc
 
     def model_size(self):
         self.__model_status()
@@ -144,8 +142,8 @@ class CorrectorSubwordBert(Corrector):
         TRAIN_BATCH_SIZE, VALID_BATCH_SIZE = 16, 32
         GRADIENT_ACC = 4
         DEVICE = self.device
-        START_EPOCH, N_EPOCHS = self.epoch, n_epochs + self.epoch
-        CHECKPOINT_PATH = os.path.join(self.ckpt_path, "finetuned_model")
+        START_EPOCH, N_EPOCHS = self.epoch + 1, n_epochs + self.epoch + 1
+        CHECKPOINT_PATH = os.path.join(self.ckpt_path, f"finetuned_model/epoch_{START_EPOCH:02d}")
         VOCAB_PATH = os.path.join(CHECKPOINT_PATH, "vocab.pkl")
         if not os.path.exists(CHECKPOINT_PATH):
             os.makedirs(CHECKPOINT_PATH)
@@ -169,15 +167,15 @@ class CorrectorSubwordBert(Corrector):
         model.to(DEVICE)
 
         # load parameters if not training from scratch
-        if START_EPOCH > 1:
-            progress_write_file = open(os.path.join(CHECKPOINT_PATH, f"progress_retrain_from_epoch{START_EPOCH}.txt"),
-                                       'w')
-            model, optimizer, max_dev_acc, argmax_dev_acc = load_pretrained(model, CHECKPOINT_PATH, optimizer=optimizer)
-            progress_write_file.write(f"Training model params after loading from path: {CHECKPOINT_PATH}\n")
-        else:
-            progress_write_file = open(os.path.join(CHECKPOINT_PATH, "progress.txt"), 'w')
-            print(f"Training model params from scratch")
-            progress_write_file.write(f"Training model params from scratch\n")
+        # if START_EPOCH > 1:
+        #     progress_write_file = open(os.path.join(CHECKPOINT_PATH, f"progress_retrain_from_epoch{START_EPOCH}.txt"),
+        #                                'w')
+        #     model, optimizer, max_dev_acc, argmax_dev_acc = load_pretrained(model, CHECKPOINT_PATH, optimizer=optimizer)
+        #     progress_write_file.write(f"Training model params after loading from path: {CHECKPOINT_PATH}\n")
+        # else:
+        progress_write_file = open(os.path.join(CHECKPOINT_PATH, "progress.txt"), 'w')
+        print(f"Training model params from scratch")
+        progress_write_file.write(f"Training model params from scratch\n")
         progress_write_file.flush()
 
         # train and eval
@@ -336,6 +334,5 @@ class CorrectorSubwordBert(Corrector):
                 max_dev_acc, argmax_dev_acc = valid_acc, epoch_id
 
         print(f"Model and logs saved at {os.path.join(CHECKPOINT_PATH, 'model.pth.tar')}")
-        wandb.finish()
 
         return

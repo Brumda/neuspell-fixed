@@ -190,10 +190,11 @@ def model_inference(model, data, topk, device, batch_size=16, vocab_=None):
     print("total token count: {}".format(_corr2corr + _corr2incorr + _incorr2corr + _incorr2incorr))
     print(
         f"_corr2corr:{_corr2corr}, _corr2incorr:{_corr2incorr}, _incorr2corr:{_incorr2corr}, _incorr2incorr:{_incorr2incorr}")
-    print(f"accuracy is {(_corr2corr + _incorr2corr) / (_corr2corr + _corr2incorr + _incorr2corr + _incorr2incorr)}")
+    accuracy = (_corr2corr + _incorr2corr) / (_corr2corr + _corr2incorr + _incorr2corr + _incorr2incorr)
+    print(f"accuracy is {accuracy}")
     print(f"word correction rate is {(_incorr2corr) / (_incorr2corr + _incorr2incorr)}")
     print("###############################################")
 
     sys.stdout = original_stdout
 
-    return output_string.getvalue()
+    return output_string.getvalue(), accuracy
