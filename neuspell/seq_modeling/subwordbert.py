@@ -24,7 +24,7 @@ def load_pretrained(model, checkpoint_path, optimizer=None, device='cuda'):
     else:
         map_location = 'cpu'
     print(f"Loading model params from checkpoint dir: {checkpoint_path}")
-    checkpoint_data = torch.load(os.path.join(checkpoint_path, "model.pth.tar"), map_location=map_location)
+    checkpoint_data = torch.load(os.path.join(checkpoint_path, "model.pth.tar"), map_location=map_location, weights_only=False)
 
     checkpoint_data.get("model_state_dict", {}).pop("bert_model.embeddings.position_ids", None)
 
