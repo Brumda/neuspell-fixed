@@ -180,7 +180,7 @@ class CorrectorSubwordBert(Corrector):
         progress_write_file.flush()
 
         # train and eval
-        for epoch_id in range(START_EPOCH, N_EPOCHS + 1):
+        for epoch_id in range(START_EPOCH, N_EPOCHS):
             e_st_time = time.time()
             # check for patience
             if (epoch_id - argmax_dev_acc) > patience:
