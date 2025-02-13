@@ -19,13 +19,14 @@ def load_model(vocab):
 def load_pretrained(model, checkpoint_path, optimizer=None, device='cuda'):
     if torch.cuda.is_available() and device != "cpu":
         print("Using CUDA")
-        device = torch.device(device)
+        torch.device(device)
         map_location = lambda storage, loc: storage.cuda()
     else:
         map_location = 'cpu'
     print(f"Loading model params from checkpoint dir: {checkpoint_path}")
     checkpoint_data = torch.load(os.path.join(checkpoint_path, "model.pth.tar"), map_location=map_location, weights_only=False)
 
+    # fix for the broken model files
     checkpoint_data.get("model_state_dict", {}).pop("bert_model.embeddings.position_ids", None)
 
     # print(f"previously model saved at : {checkpoint_data['epoch_id']}")
@@ -93,6 +94,7 @@ def model_inference(model, data, topk, device, batch_size=16, vocab_=None):
     topk: how many of the topk softmax predictions are considered for metrics calculations
     """
 
+    # now prints get send to file as well
     original_stdout = sys.stdout
     output_string = io.StringIO()
     sys.stdout = output_string

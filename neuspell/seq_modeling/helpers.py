@@ -14,10 +14,10 @@ def progressBar(value, endvalue, names, values, bar_length=30):
     percent = float(value) / endvalue
     arrow = '-' * int(round(percent * bar_length) - 1) + '>'
     spaces = ' ' * (bar_length - len(arrow));
-    string = '';
+    string = ''
     for name, val in zip(names, values):
         temp = '|| {0}: {1:.4f} '.format(name, val) if val != None else '|| {0}: {1} '.format(name, None)
-        string += temp;
+        string += temp
     sys.stdout.write("\rPercent: [{0}] {1}% {2}".format(arrow + spaces, int(round(percent * 100)), string))
     sys.stdout.flush()
     return
@@ -66,8 +66,8 @@ def train_validation_split(data, train_ratio, seed):
     np.random.seed(seed)
     len_ = len(data)
     train_len_ = int(np.ceil(train_ratio * len_))
-    inds_shuffled = np.arange(len_);
-    np.random.shuffle(inds_shuffled);
+    inds_shuffled = np.arange(len_)
+    np.random.shuffle(inds_shuffled)
     train_data = []
     for ind in inds_shuffled[:train_len_]: train_data.append(data[ind])
     validation_data = []

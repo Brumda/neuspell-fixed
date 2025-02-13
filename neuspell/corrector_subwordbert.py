@@ -246,12 +246,13 @@ class CorrectorSubwordBert(Corrector):
                     batch_acc = ncorr / ntotal
                     train_acc += batch_acc
                     # update progress
-                progressBar(batch_id + 1,
-                            int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE)),
-                            ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
-                            [time.time() - st_time, batch_loss, train_loss / (batch_id + 1), batch_acc,
-                             train_acc / train_acc_count])
+                # progressBar(batch_id + 1,
+                #             int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE)),
+                #             ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
+                #             [time.time() - st_time, batch_loss, train_loss / (batch_id + 1), batch_acc,
+                #              train_acc / train_acc_count])
                 wandb.log({f"Batch Loss e_{epoch_id}": batch_loss, f"Batch Accuracy e_{epoch_id}": batch_acc})
+                wandb.log({f"Batch Loss all": batch_loss, f"Batch Accuracy all": batch_acc})
                 if batch_id == 0 or (batch_id + 1) % 5000 == 0:
                     nb = int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE))
                     progress_write_file.write(f"{batch_id + 1}/{nb}\n")
@@ -261,8 +262,8 @@ class CorrectorSubwordBert(Corrector):
 
             print(
                 f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)},  Epoch {epoch_id} time: {time.time() - e_st_time}")
-            wandb.log({f"Epoch {epoch_id} train_loss": train_loss / (batch_id + 1),
-                       f"Epoch {epoch_id} train time": time.time() - e_st_time})
+            wandb.log({f"Train_loss": train_loss / (batch_id + 1),
+                       f"Train time": time.time() - e_st_time})
 
             # valid loss
             valid_loss = 0.
@@ -302,11 +303,11 @@ class CorrectorSubwordBert(Corrector):
                 batch_acc = ncorr / ntotal
                 valid_acc += batch_acc
                 # update progress
-                progressBar(batch_id + 1,
-                            int(np.ceil(len(valid_data) / VALID_BATCH_SIZE)),
-                            ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
-                            [time.time() - st_time, batch_loss, valid_loss / (batch_id + 1), batch_acc,
-                             valid_acc / (batch_id + 1)])
+                # progressBar(batch_id + 1,
+                #             int(np.ceil(len(valid_data) / VALID_BATCH_SIZE)),
+                #             ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
+                #             [time.time() - st_time, batch_loss, valid_loss / (batch_id + 1), batch_acc,
+                #              valid_acc / (batch_id + 1)])
                 if batch_id == 0 or (batch_id + 1) % 2000 == 0:
                     nb = int(np.ceil(len(valid_data) / VALID_BATCH_SIZE))
                     progress_write_file.write(f"{batch_id}/{nb}\n")
@@ -314,11 +315,11 @@ class CorrectorSubwordBert(Corrector):
                         f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
                     progress_write_file.flush()
             print(f"\nEpoch {epoch_id} valid_loss: {valid_loss / (batch_id + 1)}")
-            wandb.log({f"Epoch {epoch_id} valid_loss": valid_loss / (batch_id + 1)})
+            wandb.log({f"Valid_loss": valid_loss / (batch_id + 1)})
             # save model, optimizer and test_predictions if val_acc is improved
             if valid_acc >= max_dev_acc:
                 # to file
-                # name = "model-epoch{}.pth.tar".format(epoch_id)
+                # name = "model-epoch{epoch_id}.pth.tar"
                 name = "model.pth.tar"
                 torch.save({
                     'epoch_id': epoch_id,
@@ -333,6 +334,6 @@ class CorrectorSubwordBert(Corrector):
                 # re-assign
                 max_dev_acc, argmax_dev_acc = valid_acc, epoch_id
 
-        print(f"Model and logs saved at {os.path.join(CHECKPOINT_PATH, 'model.pth.tar')}")
+        print(f"Model and logs saved at {CHECKPOINT_PATH}")
 
         return
