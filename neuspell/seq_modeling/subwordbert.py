@@ -10,15 +10,14 @@ from .models import SubwordBert
 def load_model(vocab):
     model = SubwordBert(3 * len(vocab["chartoken2idx"]), vocab["token2idx"][vocab["pad_token"]],
                         len(vocab["token_freq"]))
-    print(model)
-    print(get_model_nparams(model))
+    # print(model)
+    # print(get_model_nparams(model))
 
     return model
 
 
 def load_pretrained(model, checkpoint_path, optimizer=None, device='cuda'):
     if torch.cuda.is_available() and device != "cpu":
-        print("Using CUDA")
         torch.device(device)
         map_location = lambda storage, loc: storage.cuda()
     else:
