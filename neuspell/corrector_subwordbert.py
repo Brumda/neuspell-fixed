@@ -37,6 +37,7 @@ class CorrectorSubwordBert(Corrector):
         return
 
     def from_pretrained(self, ckpt_path=None, vocab="", weights=""):
+        print(f"want to get model from{os.path.join(DEFAULT_DATA_PATH, ckpt_path)}")
         self.ckpt_path = os.path.join(DEFAULT_DATA_PATH, ckpt_path) if ckpt_path else ARXIV_CHECKPOINTS[
             "subwordbert-probwordnoise"]
         self.vocab_path = vocab if vocab else os.path.join(self.ckpt_path, "vocab.pkl")
