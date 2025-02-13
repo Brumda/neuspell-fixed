@@ -252,7 +252,7 @@ class CorrectorSubwordBert(Corrector):
                 #             ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
                 #             [time.time() - st_time, batch_loss, train_loss / (batch_id + 1), batch_acc,
                 #              train_acc / train_acc_count])
-                wandb.log({f"Batch Loss e_{epoch_id}": batch_loss, f"Batch Accuracy e_{epoch_id}": batch_acc})
+                wandb.log({f"Batch Loss e_{epoch_id}": batch_loss})
                 wandb.log({f"Batch Loss all": batch_loss, f"Batch Accuracy all": batch_acc})
                 if batch_id == 0 or (batch_id + 1) % 5000 == 0:
                     nb = int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE))
