@@ -144,7 +144,7 @@ class CorrectorSubwordBert(Corrector):
         GRADIENT_ACC = 4
         DEVICE = self.device
         START_EPOCH, N_EPOCHS = self.epoch + 1, n_epochs + self.epoch + 1
-        CHECKPOINT_PATH = os.path.join(self.ckpt_path, f"finetuned_model/epoch_{START_EPOCH:02d}")
+        CHECKPOINT_PATH = os.path.join(DEFAULT_DATA_PATH, f"finetuned_model/epoch_{START_EPOCH:02d}")
         VOCAB_PATH = os.path.join(CHECKPOINT_PATH, "vocab.pkl")
         if not os.path.exists(CHECKPOINT_PATH):
             os.makedirs(CHECKPOINT_PATH)
