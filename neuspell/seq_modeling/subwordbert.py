@@ -99,9 +99,6 @@ def model_inference(model, data, topk, device, batch_size=16, vocab_=None):
     sys.stdout = output_string
 
 
-
-
-
     if vocab_ is not None:
         vocab = vocab_
     print("###############################################")

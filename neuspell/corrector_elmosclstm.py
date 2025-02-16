@@ -4,8 +4,9 @@ from typing import List
 
 import numpy as np
 import torch
+import wandb
 
-from .commons import spacy_tokenizer, ARXIV_CHECKPOINTS, Corrector
+from .commons import spacy_tokenizer, ARXIV_CHECKPOINTS, Corrector, DEFAULT_DATA_PATH
 from .seq_modeling.downloads import download_pretrained_model
 from .seq_modeling.helpers import load_data, load_vocab_dict, get_model_nparams, sclstm_tokenize, save_vocab_dict
 from .seq_modeling.helpers import train_validation_split, batch_iter, labelize, progressBar, batch_accuracy_func
@@ -19,7 +20,7 @@ if is_module_available("allennlp"):
 
 class CorrectorElmoSCLstm(Corrector):
 
-    def __init__(self, tokenize=True, pretrained=False, device="cpu"):
+    def __init__(self, tokenize=True, pretrained=False, device="cpu", epoch=0):
         super(CorrectorElmoSCLstm, self).__init__()
 
         if not is_module_available("allennlp"):
@@ -29,6 +30,7 @@ class CorrectorElmoSCLstm(Corrector):
         self.tokenize = tokenize
         self.pretrained = pretrained
         self.device = device
+        self.epoch = epoch
 
         self.ckpt_path = None
         self.vocab_path, self.weights_path = "", ""
@@ -42,7 +44,9 @@ class CorrectorElmoSCLstm(Corrector):
         return
 
     def from_pretrained(self, ckpt_path=None, vocab="", weights=""):
-        self.ckpt_path = ckpt_path or ARXIV_CHECKPOINTS["elmoscrnn-probwordnoise"]
+        if ckpt_path: print(f"want to get model from{os.path.join(DEFAULT_DATA_PATH, ckpt_path)}")
+        self.ckpt_path = os.path.join(DEFAULT_DATA_PATH, ckpt_path) if ckpt_path else ARXIV_CHECKPOINTS[
+            "elmoscrnn-probwordnoise"]
         self.vocab_path = vocab if vocab else os.path.join(self.ckpt_path, "vocab.pkl")
         if not os.path.isfile(self.vocab_path):  # leads to "FileNotFoundError"
             download_pretrained_model(self.ckpt_path)
@@ -52,7 +56,9 @@ class CorrectorElmoSCLstm(Corrector):
         self.model = load_model(self.vocab)
         self.weights_path = weights if weights else self.ckpt_path
         print(f"loading pretrained weights from path:{self.weights_path}")
-        self.model = load_pretrained(self.model, self.weights_path, device=self.device)
+        self.model, self.epoch = load_pretrained(self.model, self.weights_path, device=self.device)
+        if not ckpt_path:
+            self.epoch = 0
         return
 
     def set_device(self, device='cpu'):
@@ -113,22 +119,21 @@ class CorrectorElmoSCLstm(Corrector):
         for x, y, z in zip([""], [clean_file], [corrupt_file]):
             print(x, y, z)
             test_data = load_data(x, y, z)
-            _ = model_inference(self.model,
-                                test_data,
-                                topk=1,
-                                device=self.device,
-                                batch_size=batch_size,
-                                beam_search=False,
-                                selected_lines_file=None,
-                                vocab_=self.vocab)
-        return
+            res, acc = model_inference(self.model,
+                                       test_data,
+                                       topk=1,
+                                       device=self.device,
+                                       batch_size=batch_size,
+                                       beam_search=False,
+                                       selected_lines_file=None,
+                                       vocab_=self.vocab)
+        return res, acc
 
     def model_size(self):
         self.__model_status()
         return get_model_nparams(self.model)
 
     def finetune(self, clean_file, corrupt_file, validation_split=0.2, n_epochs=2, new_vocab_list=[]):
-
         if new_vocab_list:
             raise NotImplementedError("Do not currently support modifying output vocabulary of the models")
 
@@ -148,8 +153,9 @@ class CorrectorElmoSCLstm(Corrector):
         TRAIN_BATCH_SIZE, VALID_BATCH_SIZE = 16, 32
         GRADIENT_ACC = 4
         DEVICE = self.device
-        START_EPOCH, N_EPOCHS = 0, n_epochs
-        CHECKPOINT_PATH = os.path.join(self.ckpt_path, "finetuned_model")
+        START_EPOCH, N_EPOCHS = self.epoch + 1, n_epochs + self.epoch
+        CHECKPOINT_PATH = os.path.join(ARXIV_CHECKPOINTS["subwordbert-probwordnoise"],
+                                       f"finetuned_model/epoch_{START_EPOCH:02d}")
         VOCAB_PATH = os.path.join(CHECKPOINT_PATH, "vocab.pkl")
         if not os.path.exists(CHECKPOINT_PATH):
             os.makedirs(CHECKPOINT_PATH)
@@ -166,19 +172,20 @@ class CorrectorElmoSCLstm(Corrector):
         model.to(DEVICE)
 
         # load parameters if not training from scratch
-        if START_EPOCH > 1:
-            progress_write_file = open(os.path.join(CHECKPOINT_PATH, f"progress_retrain_from_epoch{START_EPOCH}.txt"),
-                                       'w')
-            model, optimizer, max_dev_acc, argmax_dev_acc = load_pretrained(model, CHECKPOINT_PATH, optimizer=optimizer)
-            progress_write_file.write(f"Training model params after loading from path: {CHECKPOINT_PATH}\n")
-        else:
-            progress_write_file = open(os.path.join(CHECKPOINT_PATH, "progress.txt"), 'w')
-            print(f"Training model params from scratch")
-            progress_write_file.write(f"Training model params from scratch\n")
+        # if START_EPOCH > 1:
+        #     progress_write_file = open(os.path.join(CHECKPOINT_PATH, f"progress_retrain_from_epoch{START_EPOCH}.txt"),
+        #                                'w')
+        #     model, optimizer, max_dev_acc, argmax_dev_acc = load_pretrained(model, CHECKPOINT_PATH, optimizer=optimizer)
+        #     progress_write_file.write(f"Training model params after loading from path: {CHECKPOINT_PATH}\n")
+        # else:
+        progress_write_file = open(os.path.join(CHECKPOINT_PATH, "progress.txt"), 'w')
+        print(f"Training model params from scratch")
+        progress_write_file.write(f"Training model params from scratch\n")
         progress_write_file.flush()
 
         # train and eval
         for epoch_id in range(START_EPOCH, N_EPOCHS + 1):
+            e_st_time = time.time()
             # check for patience
             if (epoch_id - argmax_dev_acc) > patience:
                 print("patience count reached. early stopping initiated")
@@ -230,11 +237,13 @@ class CorrectorElmoSCLstm(Corrector):
                     batch_acc = ncorr / ntotal
                     train_acc += batch_acc
                     # update progress
-                progressBar(batch_id + 1,
-                            int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE)),
-                            ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
-                            [time.time() - st_time, batch_loss, train_loss / (batch_id + 1), batch_acc,
-                             train_acc / train_acc_count])
+                # progressBar(batch_id + 1,
+                #             int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE)),
+                #             ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
+                #             [time.time() - st_time, batch_loss, train_loss / (batch_id + 1), batch_acc,
+                #              train_acc / train_acc_count])
+                wandb.log({f"Batch Loss e_{epoch_id}": batch_loss})
+                wandb.log({f"Batch Loss all": batch_loss, f"Batch Accuracy all": batch_acc})
                 if batch_id == 0 or (batch_id + 1) % 5000 == 0:
                     nb = int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE))
                     progress_write_file.write(f"{batch_id + 1}/{nb}\n")
@@ -242,7 +251,8 @@ class CorrectorElmoSCLstm(Corrector):
                         f"batch_time: {time.time() - st_time}, avg_batch_loss: {train_loss / (batch_id + 1)}, avg_batch_acc: {train_acc / (batch_id + 1)}\n")
                     progress_write_file.flush()
             print(f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)}")
-
+            wandb.log({f"Train_loss": train_loss / (batch_id + 1),
+                       f"Train time": time.time() - e_st_time})
             try:
                 # valid loss
                 valid_loss = 0.
@@ -276,11 +286,11 @@ class CorrectorElmoSCLstm(Corrector):
                     batch_acc = ncorr / ntotal
                     valid_acc += batch_acc
                     # update progress
-                    progressBar(batch_id + 1,
-                                int(np.ceil(len(valid_data) / VALID_BATCH_SIZE)),
-                                ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
-                                [time.time() - st_time, batch_loss, valid_loss / (batch_id + 1), batch_acc,
-                                 valid_acc / (batch_id + 1)])
+                    # progressBar(batch_id + 1,
+                    #             int(np.ceil(len(valid_data) / VALID_BATCH_SIZE)),
+                    #             ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
+                    #             [time.time() - st_time, batch_loss, valid_loss / (batch_id + 1), batch_acc,
+                    #              valid_acc / (batch_id + 1)])
                     if batch_id == 0 or (batch_id + 1) % 2000 == 0:
                         nb = int(np.ceil(len(valid_data) / VALID_BATCH_SIZE))
                         progress_write_file.write(f"{batch_id}/{nb}\n")
@@ -288,12 +298,12 @@ class CorrectorElmoSCLstm(Corrector):
                             f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
                         progress_write_file.flush()
                 print(f"\nEpoch {epoch_id} valid_loss: {valid_loss / (batch_id + 1)}")
-
+                wandb.log({f"Valid_loss": valid_loss / (batch_id + 1)})
                 # save model, optimizer and test_predictions if val_acc is improved
                 if valid_acc >= max_dev_acc:
                     # to file
                     # name = "model-epoch{}.pth.tar".format(epoch_id)
-                    name = "model.pth.tar".format(epoch_id)
+                    name = "model.pth.tar"
                     torch.save({
                         'epoch_id': epoch_id,
                         'previous_max_dev_acc': max_dev_acc,
@@ -313,7 +323,7 @@ class CorrectorElmoSCLstm(Corrector):
                 temp_folder = os.path.join(CHECKPOINT_PATH, "temp")
                 if not os.path.exists(temp_folder):
                     os.makedirs(temp_folder)
-                name = "model.pth.tar".format(epoch_id)
+                name = "model.pth.tar"
                 torch.save({
                     'epoch_id': epoch_id,
                     'previous_max_dev_acc': max_dev_acc,

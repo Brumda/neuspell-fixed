@@ -1,3 +1,4 @@
+import io
 import time
 
 from .evals import get_metrics
@@ -89,7 +90,8 @@ def load_pretrained(model, CHECKPOINT_PATH, optimizer=None, device='cuda'):
     else:
         map_location = 'cpu'
     print(f"Loading model params from checkpoint dir: {CHECKPOINT_PATH}")
-    checkpoint_data = torch.load(os.path.join(CHECKPOINT_PATH, "model.pth.tar"), map_location=map_location)
+    checkpoint_data = torch.load(os.path.join(CHECKPOINT_PATH, "model.pth.tar"), map_location=map_location,
+                                 weights_only=False)
     # print(f"previously model saved at : {checkpoint_data['epoch_id']}")
 
     model.load_state_dict(checkpoint_data['model_state_dict'])
@@ -101,7 +103,7 @@ def load_pretrained(model, CHECKPOINT_PATH, optimizer=None, device='cuda'):
     if optimizer is not None:
         return model, optimizer, max_dev_acc, argmax_dev_acc
 
-    return model
+    return model, checkpoint_data['epoch_id']
 
 
 def model_predictions(model, data, vocab, device, batch_size=16, backoff="pass-through"):
@@ -225,6 +227,12 @@ def model_inference(model, data, topk, device, batch_size=16, beam_search=False,
     batch_size: batch size for input to the model
     beam_search: if True, greedy topk will not be performed
     """
+
+    # now prints get send to file as well
+    original_stdout = sys.stdout
+    output_string = io.StringIO()
+    sys.stdout = output_string
+
     if vocab_ is not None:
         vocab = vocab_
     if beam_search:
@@ -394,7 +402,8 @@ def model_inference(model, data, topk, device, batch_size=16, beam_search=False,
     print("###############################################")
     print("total token count: {}".format(corr2corr + corr2incorr + incorr2corr + incorr2incorr))
     print(f"corr2corr:{corr2corr}, corr2incorr:{corr2incorr}, incorr2corr:{incorr2corr}, incorr2incorr:{incorr2incorr}")
-    print(f"accuracy is {(corr2corr + incorr2corr) / (corr2corr + corr2incorr + incorr2corr + incorr2incorr)}")
+    accuracy = (corr2corr + incorr2corr) / (corr2corr + corr2incorr + incorr2corr + incorr2incorr)
+    print(f"accuracy is {accuracy}")
     print(f"word correction rate is {(incorr2corr) / (incorr2corr + incorr2incorr)}")
     print("###############################################")
 
@@ -419,8 +428,10 @@ def model_inference(model, data, topk, device, batch_size=16, beam_search=False,
         print("total token count: {}".format(corr2corr + corr2incorr + incorr2corr + incorr2incorr))
         print(
             f"corr2corr:{corr2corr}, corr2incorr:{corr2incorr}, incorr2corr:{incorr2corr}, incorr2incorr:{incorr2incorr}")
-        print(f"accuracy is {(corr2corr + incorr2corr) / (corr2corr + corr2incorr + incorr2corr + incorr2incorr)}")
+        accuracy = (corr2corr + incorr2corr) / (corr2corr + corr2incorr + incorr2corr + incorr2incorr)
+        print(f"accuracy is {accuracy}")
         print(f"word correction rate is {(incorr2corr) / (incorr2corr + incorr2incorr)}")
         print("###############################################")
 
-    return results
+    sys.stdout = original_stdout
+    return results, output_string.getvalue(), accuracy

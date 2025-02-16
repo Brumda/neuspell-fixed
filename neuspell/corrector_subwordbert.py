@@ -37,7 +37,7 @@ class CorrectorSubwordBert(Corrector):
         return
 
     def from_pretrained(self, ckpt_path=None, vocab="", weights=""):
-        if ckpt_path : print(f"want to get model from{os.path.join(DEFAULT_DATA_PATH, ckpt_path)}")
+        if ckpt_path: print(f"want to get model from{os.path.join(DEFAULT_DATA_PATH, ckpt_path)}")
         self.ckpt_path = os.path.join(DEFAULT_DATA_PATH, ckpt_path) if ckpt_path else ARXIV_CHECKPOINTS[
             "subwordbert-probwordnoise"]
         self.vocab_path = vocab if vocab else os.path.join(self.ckpt_path, "vocab.pkl")
@@ -143,8 +143,9 @@ class CorrectorSubwordBert(Corrector):
         TRAIN_BATCH_SIZE, VALID_BATCH_SIZE = 16, 32
         GRADIENT_ACC = 4
         DEVICE = self.device
-        START_EPOCH, N_EPOCHS = self.epoch + 1, n_epochs + self.epoch + 1
-        CHECKPOINT_PATH = os.path.join(ARXIV_CHECKPOINTS["subwordbert-probwordnoise"], f"finetuned_model/epoch_{START_EPOCH:02d}")
+        START_EPOCH, N_EPOCHS = self.epoch + 1, n_epochs + self.epoch
+        CHECKPOINT_PATH = os.path.join(ARXIV_CHECKPOINTS["subwordbert-probwordnoise"],
+                                       f"finetuned_model/epoch_{START_EPOCH:02d}")
         VOCAB_PATH = os.path.join(CHECKPOINT_PATH, "vocab.pkl")
         if not os.path.exists(CHECKPOINT_PATH):
             os.makedirs(CHECKPOINT_PATH)
@@ -180,7 +181,7 @@ class CorrectorSubwordBert(Corrector):
         progress_write_file.flush()
 
         # train and eval
-        for epoch_id in range(START_EPOCH, N_EPOCHS):
+        for epoch_id in range(START_EPOCH, N_EPOCHS + 1):
             e_st_time = time.time()
             # check for patience
             if (epoch_id - argmax_dev_acc) > patience:
