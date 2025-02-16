@@ -5,6 +5,8 @@ with open("README.md", mode="r", encoding="utf-8") as readme_file:
 
 requirements = [
     'transformers',
+    'wandb',
+    'allennlp',
     'tqdm',
     'numpy',
     'jsonlines',
