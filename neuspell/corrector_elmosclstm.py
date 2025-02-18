@@ -119,7 +119,7 @@ class CorrectorElmoSCLstm(Corrector):
         for x, y, z in zip([""], [clean_file], [corrupt_file]):
             print(x, y, z)
             test_data = load_data(x, y, z)
-            res, acc = model_inference(self.model,
+            result, prints, acc = model_inference(self.model,
                                        test_data,
                                        topk=1,
                                        device=self.device,
@@ -127,7 +127,7 @@ class CorrectorElmoSCLstm(Corrector):
                                        beam_search=False,
                                        selected_lines_file=None,
                                        vocab_=self.vocab)
-        return res, acc
+        return result, prints, acc
 
     def model_size(self):
         self.__model_status()
