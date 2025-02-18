@@ -12,8 +12,8 @@ requirements = [
     'jsonlines',
     'sentencepiece',
     'torch',
-    'torchvision',
-    'torchaudio',
+    # 'torchvision',
+    # 'torchaudio',
     'pytorch_pretrained_bert'
 ]
 
