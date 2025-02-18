@@ -154,7 +154,7 @@ class CorrectorElmoSCLstm(Corrector):
         GRADIENT_ACC = 4
         DEVICE = self.device
         START_EPOCH, N_EPOCHS = self.epoch + 1, n_epochs + self.epoch
-        CHECKPOINT_PATH = os.path.join(ARXIV_CHECKPOINTS["subwordbert-probwordnoise"],
+        CHECKPOINT_PATH = os.path.join(ARXIV_CHECKPOINTS["elmoscrnn-probwordnoise"],
                                        f"finetuned_model/epoch_{START_EPOCH:02d}")
         VOCAB_PATH = os.path.join(CHECKPOINT_PATH, "vocab.pkl")
         if not os.path.exists(CHECKPOINT_PATH):
