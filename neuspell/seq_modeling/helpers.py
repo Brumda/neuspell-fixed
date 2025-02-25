@@ -553,12 +553,10 @@ def beam_search_decoder(data, k):
 
 
 def get_model_nparams(model):
-    ntotal = 0
-    for param in list(model.parameters()):
-        temp = 1
-        for sz in list(param.size()): temp *= sz
-        ntotal += temp
-    return ntotal
+    param_size = sum(p.numel() * p.element_size() for p in model.parameters())
+    buffer_size = sum(b.numel() * b.element_size() for b in model.buffers())
+    total_size_mb = (param_size + buffer_size) / 1024**2
+    return total_size_mb
 
 
 def batch_accuracy_func(batch_predictions: np.ndarray,
