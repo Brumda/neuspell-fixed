@@ -6,11 +6,11 @@ import numpy as np
 import torch
 import wandb
 
-from .commons import spacy_tokenizer, ARXIV_CHECKPOINTS, Corrector, DEFAULT_DATA_PATH
+from .commons import ARXIV_CHECKPOINTS, Corrector, DEFAULT_DATA_PATH, spacy_tokenizer
 from .seq_modeling.downloads import download_pretrained_model
-from .seq_modeling.helpers import load_data, load_vocab_dict, get_model_nparams, sclstm_tokenize, save_vocab_dict
-from .seq_modeling.helpers import train_validation_split, batch_iter, labelize, progressBar, batch_accuracy_func
-from .seq_modeling.util import is_module_available, get_module_or_attr
+from .seq_modeling.helpers import batch_accuracy_func, batch_iter, labelize, train_validation_split
+from .seq_modeling.helpers import get_model_nparams, load_data, load_vocab_dict, save_vocab_dict, sclstm_tokenize
+from .seq_modeling.util import get_module_or_attr, is_module_available
 
 if is_module_available("allennlp"):
     from .seq_modeling.elmosclstm import load_model, load_pretrained, model_predictions, model_inference
@@ -25,7 +25,7 @@ class CorrectorElmoSCLstm(Corrector):
 
         if not is_module_available("allennlp"):
             raise ImportError(
-                "install `allennlp` by running `pip install -r extras-requirements.txt`. See `README.md` for more info.")
+                    "install `allennlp` by running `pip install -r extras-requirements.txt`. See `README.md` for more info.")
 
         self.tokenize = tokenize
         self.pretrained = pretrained
@@ -120,26 +120,30 @@ class CorrectorElmoSCLstm(Corrector):
             print(x, y, z)
             test_data = load_data(x, y, z)
             result, prints, acc = model_inference(self.model,
-                                       test_data,
-                                       topk=1,
-                                       device=self.device,
-                                       batch_size=batch_size,
-                                       beam_search=False,
-                                       selected_lines_file=None,
-                                       vocab_=self.vocab)
+                                                  test_data,
+                                                  topk=1,
+                                                  device=self.device,
+                                                  batch_size=batch_size,
+                                                  beam_search=False,
+                                                  selected_lines_file=None,
+                                                  vocab_=self.vocab)
         return result, prints, acc
 
     def model_size(self):
         self.__model_status()
         return get_model_nparams(self.model)
 
-    def finetune(self, clean_file, corrupt_file, validation_split=0.2, n_epochs=2, new_vocab_list=[]):
+    def finetune(self, clean_file, corrupt_file, valid_cl_file=None, valid_corr_file=None, validation_split=0.2,
+                 n_epochs=2, new_vocab_list=[]):
         if new_vocab_list:
             raise NotImplementedError("Do not currently support modifying output vocabulary of the models")
 
         # load data and split in train-validation
         train_data = load_data("", clean_file, corrupt_file)
-        train_data, valid_data = train_validation_split(train_data, 0.8, seed=11690)
+        if valid_cl_file:
+            valid_data = load_data("", valid_cl_file, valid_corr_file)
+        else:
+            train_data, valid_data = train_validation_split(train_data, 0.8, seed=11690)
         print("len of train and test data: ", len(train_data), len(valid_data))
 
         # load vocab and model
@@ -212,7 +216,7 @@ class CorrectorElmoSCLstm(Corrector):
                 batch_idxs, batch_lengths_ = sclstm_tokenize(batch_sentences, vocab)
                 assert (batch_lengths_ == batch_lengths).all() == True
                 batch_idxs = [batch_idxs_.to(DEVICE) for batch_idxs_ in batch_idxs]
-                batch_lengths = batch_lengths.to('cpu') # whyyy
+                batch_lengths = batch_lengths.to('cpu')  # whyyy
                 batch_labels = batch_labels.to(DEVICE)
                 elmo_batch_to_ids = get_module_or_attr("allennlp.modules.elmo", "batch_to_ids")
                 batch_elmo_inp = elmo_batch_to_ids([line.split() for line in batch_sentences]).to(DEVICE)
@@ -248,7 +252,7 @@ class CorrectorElmoSCLstm(Corrector):
                     nb = int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE))
                     progress_write_file.write(f"{batch_id + 1}/{nb}\n")
                     progress_write_file.write(
-                        f"batch_time: {time.time() - st_time}, avg_batch_loss: {train_loss / (batch_id + 1)}, avg_batch_acc: {train_acc / (batch_id + 1)}\n")
+                            f"batch_time: {time.time() - st_time}, avg_batch_loss: {train_loss / (batch_id + 1)}, avg_batch_acc: {train_acc / (batch_id + 1)}\n")
                     progress_write_file.flush()
             print(f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)}")
             wandb.log({f"Train_loss": train_loss / (batch_id + 1),
@@ -268,7 +272,7 @@ class CorrectorElmoSCLstm(Corrector):
                     batch_idxs, batch_lengths_ = sclstm_tokenize(batch_sentences, vocab)
                     assert (batch_lengths_ == batch_lengths).all() == True
                     batch_idxs = [batch_idxs_.to(DEVICE) for batch_idxs_ in batch_idxs]
-                    batch_lengths = batch_lengths.to('cpu') # stoooop
+                    batch_lengths = batch_lengths.to('cpu')  # stoooop
                     batch_labels = batch_labels.to(DEVICE)
                     elmo_batch_to_ids = get_module_or_attr("allennlp.modules.elmo", "batch_to_ids")
                     batch_elmo_inp = elmo_batch_to_ids([line.split() for line in batch_sentences]).to(DEVICE)
@@ -295,7 +299,7 @@ class CorrectorElmoSCLstm(Corrector):
                         nb = int(np.ceil(len(valid_data) / VALID_BATCH_SIZE))
                         progress_write_file.write(f"{batch_id}/{nb}\n")
                         progress_write_file.write(
-                            f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
+                                f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
                         progress_write_file.flush()
                 print(f"\nEpoch {epoch_id} valid_loss: {valid_loss / (batch_id + 1)}")
                 wandb.log({f"Valid_loss": valid_loss / (batch_id + 1)})
@@ -305,14 +309,14 @@ class CorrectorElmoSCLstm(Corrector):
                     # name = "model-epoch{}.pth.tar".format(epoch_id)
                     name = "model.pth.tar"
                     torch.save({
-                        'epoch_id': epoch_id,
-                        'previous_max_dev_acc': max_dev_acc,
-                        'previous_argmax_dev_acc': argmax_dev_acc,
-                        'max_dev_acc': valid_acc,
-                        'argmax_dev_acc': epoch_id,
-                        'model_state_dict': model.state_dict(),
-                        'optimizer_state_dict': optimizer.state_dict()},
-                        os.path.join(CHECKPOINT_PATH, name))
+                            'epoch_id':                epoch_id,
+                            'previous_max_dev_acc':    max_dev_acc,
+                            'previous_argmax_dev_acc': argmax_dev_acc,
+                            'max_dev_acc':             valid_acc,
+                            'argmax_dev_acc':          epoch_id,
+                            'model_state_dict':        model.state_dict(),
+                            'optimizer_state_dict':    optimizer.state_dict()},
+                            os.path.join(CHECKPOINT_PATH, name))
                     print("Model saved at {} in epoch {}".format(os.path.join(CHECKPOINT_PATH, name), epoch_id))
                     save_vocab_dict(VOCAB_PATH, vocab)
 
@@ -325,14 +329,14 @@ class CorrectorElmoSCLstm(Corrector):
                     os.makedirs(temp_folder)
                 name = "model.pth.tar"
                 torch.save({
-                    'epoch_id': epoch_id,
-                    'previous_max_dev_acc': max_dev_acc,
-                    'previous_argmax_dev_acc': argmax_dev_acc,
-                    'max_dev_acc': valid_acc,
-                    'argmax_dev_acc': epoch_id,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict()},
-                    os.path.join(temp_folder, name))
+                        'epoch_id':                epoch_id,
+                        'previous_max_dev_acc':    max_dev_acc,
+                        'previous_argmax_dev_acc': argmax_dev_acc,
+                        'max_dev_acc':             valid_acc,
+                        'argmax_dev_acc':          epoch_id,
+                        'model_state_dict':        model.state_dict(),
+                        'optimizer_state_dict':    optimizer.state_dict()},
+                        os.path.join(temp_folder, name))
                 print("Model saved at {} in epoch {}".format(os.path.join(temp_folder, name), epoch_id))
                 save_vocab_dict(VOCAB_PATH, vocab)
                 raise Exception(e)

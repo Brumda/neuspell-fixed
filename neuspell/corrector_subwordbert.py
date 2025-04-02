@@ -2,17 +2,17 @@ import os
 import time
 from typing import List
 
-import wandb
 import numpy as np
 import torch
+import wandb
 from pytorch_pretrained_bert import BertAdam
 
 from .commons import ARXIV_CHECKPOINTS, Corrector, DEFAULT_DATA_PATH
 from .seq_modeling.downloads import download_pretrained_model
+from .seq_modeling.helpers import batch_accuracy_func, batch_iter, labelize, train_validation_split
 from .seq_modeling.helpers import bert_tokenize_for_valid_examples
-from .seq_modeling.helpers import load_data, load_vocab_dict, get_model_nparams, save_vocab_dict
-from .seq_modeling.helpers import train_validation_split, batch_iter, labelize, progressBar, batch_accuracy_func
-from .seq_modeling.subwordbert import load_model, load_pretrained, model_predictions, model_inference
+from .seq_modeling.helpers import get_model_nparams, load_data, load_vocab_dict, save_vocab_dict
+from .seq_modeling.subwordbert import load_model, load_pretrained, model_inference, model_predictions
 
 """ corrector module """
 
@@ -123,13 +123,16 @@ class CorrectorSubwordBert(Corrector):
         self.__model_status()
         return get_model_nparams(self.model)
 
-    def finetune(self, clean_file, corrupt_file, validation_split=0.2, n_epochs=2, new_vocab_list=[]):
+    def finetune(self, clean_file, corrupt_file, valid_cl_file=None, valid_corr_file=None, validation_split=0.2, n_epochs=2, new_vocab_list=[]):
         if new_vocab_list:
             raise NotImplementedError("Do not currently support modifying output vocabulary of the models")
         print("tuning...")
         # load data and split in train-validation
         train_data = load_data("", clean_file, corrupt_file)
-        train_data, valid_data = train_validation_split(train_data, 0.8, seed=11690)
+        if valid_cl_file:
+            valid_data = load_data("", valid_cl_file, valid_corr_file)
+        else:
+            train_data, valid_data = train_validation_split(train_data, 0.8, seed=11690)
         print("len of train and test data: ", len(train_data), len(valid_data))
 
         # load vocab and model
@@ -159,8 +162,9 @@ class CorrectorSubwordBert(Corrector):
         param_optimizer = list(model.named_parameters())
         no_decay = ['bias', 'LayerNorm.bias', 'LayerNorm.weight']
         optimizer_grouped_parameters = [
-            {'params': [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)], 'weight_decay': 0.01},
-            {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
+                {'params':       [p for n, p in param_optimizer if not any(nd in n for nd in no_decay)],
+                 'weight_decay': 0.01},
+                {'params': [p for n, p in param_optimizer if any(nd in n for nd in no_decay)], 'weight_decay': 0.0}
         ]
         t_total = int(len(train_data) / TRAIN_BATCH_SIZE / GRADIENT_ACC * N_EPOCHS)
         optimizer = BertAdam(optimizer_grouped_parameters, lr=5e-5, warmup=0.1, t_total=t_total)
@@ -206,7 +210,7 @@ class CorrectorSubwordBert(Corrector):
                 st_time = time.time()
                 # set batch data for bert
                 batch_labels_, batch_sentences_, batch_bert_inp, batch_bert_splits = bert_tokenize_for_valid_examples(
-                    batch_labels, batch_sentences)
+                        batch_labels, batch_sentences)
                 if len(batch_labels_) == 0:
                     print("################")
                     print("Not training the following lines due to pre-processing mismatch: \n")
@@ -259,11 +263,11 @@ class CorrectorSubwordBert(Corrector):
                     nb = int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE))
                     progress_write_file.write(f"{batch_id + 1}/{nb}\n")
                     progress_write_file.write(
-                        f"batch_time: {time.time() - st_time}, avg_batch_loss: {train_loss / (batch_id + 1)}, avg_batch_acc: {train_acc / train_acc_count}\n")
+                            f"batch_time: {time.time() - st_time}, avg_batch_loss: {train_loss / (batch_id + 1)}, avg_batch_acc: {train_acc / train_acc_count}\n")
                     progress_write_file.flush()
 
             print(
-                f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)},  Epoch {epoch_id} time: {time.time() - e_st_time}")
+                    f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)},  Epoch {epoch_id} time: {time.time() - e_st_time}")
             wandb.log({f"Train_loss": train_loss / (batch_id + 1),
                        f"Train time": time.time() - e_st_time})
 
@@ -278,7 +282,7 @@ class CorrectorSubwordBert(Corrector):
                 st_time = time.time()
                 # set batch data for bert
                 batch_labels_, batch_sentences_, batch_bert_inp, batch_bert_splits = bert_tokenize_for_valid_examples(
-                    batch_labels, batch_sentences)
+                        batch_labels, batch_sentences)
                 if len(batch_labels_) == 0:
                     print("################")
                     print("Not validating the following lines due to pre-processing mismatch: \n")
@@ -314,7 +318,7 @@ class CorrectorSubwordBert(Corrector):
                     nb = int(np.ceil(len(valid_data) / VALID_BATCH_SIZE))
                     progress_write_file.write(f"{batch_id}/{nb}\n")
                     progress_write_file.write(
-                        f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
+                            f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
                     progress_write_file.flush()
             print(f"\nEpoch {epoch_id} valid_loss: {valid_loss / (batch_id + 1)}")
             wandb.log({f"Valid_loss": valid_loss / (batch_id + 1)})
@@ -324,12 +328,12 @@ class CorrectorSubwordBert(Corrector):
                 # name = "model-epoch{epoch_id}.pth.tar"
                 name = "model.pth.tar"
                 torch.save({
-                    'epoch_id': epoch_id,
-                    'max_dev_acc': max_dev_acc,
-                    'argmax_dev_acc': argmax_dev_acc,
-                    'model_state_dict': model.state_dict(),
-                    'optimizer_state_dict': optimizer.state_dict()},
-                    os.path.join(CHECKPOINT_PATH, name))
+                        'epoch_id':             epoch_id,
+                        'max_dev_acc':          max_dev_acc,
+                        'argmax_dev_acc':       argmax_dev_acc,
+                        'model_state_dict':     model.state_dict(),
+                        'optimizer_state_dict': optimizer.state_dict()},
+                        os.path.join(CHECKPOINT_PATH, name))
                 print("Model saved at {} in epoch {}".format(os.path.join(CHECKPOINT_PATH, name), epoch_id))
                 save_vocab_dict(VOCAB_PATH, vocab)
 
