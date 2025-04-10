@@ -335,6 +335,7 @@ class CorrectorSubwordBert(Corrector):
                         'optimizer_state_dict': optimizer.state_dict()},
                         os.path.join(CHECKPOINT_PATH, name))
                 print("Model saved at {} in epoch {}".format(os.path.join(CHECKPOINT_PATH, name), epoch_id))
+                wandb.log({f"Model saved at epoch": epoch_id})
                 save_vocab_dict(VOCAB_PATH, vocab)
 
                 # re-assign

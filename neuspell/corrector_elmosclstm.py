@@ -319,7 +319,7 @@ class CorrectorElmoSCLstm(Corrector):
                             os.path.join(CHECKPOINT_PATH, name))
                     print("Model saved at {} in epoch {}".format(os.path.join(CHECKPOINT_PATH, name), epoch_id))
                     save_vocab_dict(VOCAB_PATH, vocab)
-
+                    wandb.log({f"Model saved at epoch": epoch_id})
                     # re-assign
                     max_dev_acc, argmax_dev_acc = valid_acc, epoch_id
 
