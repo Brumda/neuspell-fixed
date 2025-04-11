@@ -10,7 +10,7 @@ from pytorch_pretrained_bert import BertAdam
 from .commons import ARXIV_CHECKPOINTS, Corrector, DEFAULT_DATA_PATH
 from .seq_modeling.downloads import download_pretrained_model
 from .seq_modeling.helpers import batch_accuracy_func, batch_iter, labelize, train_validation_split
-from .seq_modeling.helpers import bert_tokenize_for_valid_examples
+from .seq_modeling.helpers import bert_tokenize_for_valid_examples, fix_spaces
 from .seq_modeling.helpers import get_model_nparams, load_data, load_vocab_dict, save_vocab_dict
 from .seq_modeling.subwordbert import load_model, load_pretrained, model_inference, model_predictions
 
@@ -71,10 +71,11 @@ class CorrectorSubwordBert(Corrector):
 
     def correct_string(self, mystring: str, return_all=False) -> str:
         x = self.correct_strings([mystring], return_all=return_all)
+        correct_spaces_text = fix_spaces(mystring, x[0])
         if return_all:
             return x[0][0], x[1][0]
         else:
-            return x[0]
+            return correct_spaces_text
 
     def correct_strings(self, mystrings: List[str], return_all=False) -> List[str]:
         self.__model_status()
@@ -112,18 +113,19 @@ class CorrectorSubwordBert(Corrector):
             print(x, y, z)
             test_data = load_data(x, y, z)
             prints, acc = model_inference(self.model,
-                                       test_data,
-                                       topk=1,
-                                       device=self.device,
-                                       batch_size=batch_size,
-                                       vocab_=self.vocab)
+                                          test_data,
+                                          topk=1,
+                                          device=self.device,
+                                          batch_size=batch_size,
+                                          vocab_=self.vocab)
         return "placeholder", prints, acc
 
     def model_size(self):
         self.__model_status()
         return get_model_nparams(self.model)
 
-    def finetune(self, clean_file, corrupt_file, valid_cl_file=None, valid_corr_file=None, validation_split=0.2, n_epochs=2, new_vocab_list=[]):
+    def finetune(self, clean_file, corrupt_file, valid_cl_file=None, valid_corr_file=None, validation_split=0.2,
+                 n_epochs=2, new_vocab_list=[]):
         if new_vocab_list:
             raise NotImplementedError("Do not currently support modifying output vocabulary of the models")
         print("tuning...")

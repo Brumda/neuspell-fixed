@@ -605,7 +605,7 @@ import transformers
 
 # import torch
 # from torch.nn.utils.rnn import pad_sequence
-BERT_TOKENIZER = transformers.BertTokenizer.from_pretrained('bert-base-cased')
+BERT_TOKENIZER = transformers.BertTokenizerFast.from_pretrained('bert-base-cased')
 BERT_TOKENIZER.do_basic_tokenize = True
 BERT_TOKENIZER.tokenize_chinese_chars = False
 BERT_MAX_SEQ_LEN = 512
@@ -735,6 +735,33 @@ def bert_tokenize_for_valid_examples(batch_orginal_sentences, batch_noisy_senten
                            "token_type_ids": batch_token_type_ids}
 
     return batch_orginal_sentences, batch_noisy_sentences, batch_bert_dict, batch_splits
+
+
+def fix_spaces(orig_string :str, pred_string :str) -> str:
+    tokens_mapping = BERT_TOKENIZER(orig_string, return_offsets_mapping=True)
+    original_offsets = tokens_mapping['offset_mapping']
+
+    pretok_sent = []
+    offsets_merged = []
+    for token, offset in zip(BERT_TOKENIZER.tokenize(pred_string), original_offsets[1:-1]):
+        if token.startswith("##"):
+            pretok_sent[-1] = pretok_sent[-1] + token[2:]
+            offsets_merged[-1] = (offsets_merged[-1][0], offset[1])
+        else:
+            pretok_sent.append(token)
+            offsets_merged.append(offset)
+    # first and last offsets are [CLS] and [SEP]
+    offsets = np.array(offsets_merged)
+    # boolean mask checking if the offsets align or next start index is greater than previous end
+    # indicating space in the original text
+    mask = offsets[1:, 0] > offsets[:-1, 1]
+    mask = np.append(mask, False) # there is no space after the text
+    tokens_arr = np.array(pretok_sent)
+    # add spaces back at corresponding places
+    tokens_with_space = np.where(mask, tokens_arr + " ", tokens_arr)
+    reconstructed_text = "".join(tokens_with_space)
+    return reconstructed_text
+
 
 ################################################
 # <-----
