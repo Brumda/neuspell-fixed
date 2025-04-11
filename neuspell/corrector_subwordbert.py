@@ -111,13 +111,13 @@ class CorrectorSubwordBert(Corrector):
         for x, y, z in zip([""], [clean_file], [corrupt_file]):
             print(x, y, z)
             test_data = load_data(x, y, z)
-            res, acc = model_inference(self.model,
+            prints, acc = model_inference(self.model,
                                        test_data,
                                        topk=1,
                                        device=self.device,
                                        batch_size=batch_size,
                                        vocab_=self.vocab)
-        return res, acc
+        return "placeholder", prints, acc
 
     def model_size(self):
         self.__model_status()
