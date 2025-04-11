@@ -605,7 +605,7 @@ import transformers
 
 # import torch
 # from torch.nn.utils.rnn import pad_sequence
-BERT_TOKENIZER = transformers.BertTokenizerFast.from_pretrained('bert-base-cased')
+BERT_TOKENIZER = transformers.BertTokenizer.from_pretrained('bert-base-cased')
 BERT_TOKENIZER.do_basic_tokenize = True
 BERT_TOKENIZER.tokenize_chinese_chars = False
 BERT_MAX_SEQ_LEN = 512
@@ -662,7 +662,7 @@ def bert_tokenize(batch_sentences):
 
     # max_seq_len = max([len(tokens) for tokens in batch_tokens])
     # batch_encoded_dicts = [BERT_TOKENIZER.encode_plus(tokens,max_length=max_seq_len,pad_to_max_length=True) for tokens in batch_tokens]
-    batch_encoded_dicts = [BERT_TOKENIZER.encode_plus(tokens, is_split_into_words=True) for tokens in batch_tokens]
+    batch_encoded_dicts = [BERT_TOKENIZER.encode_plus(tokens) for tokens in batch_tokens]
 
     batch_attention_masks = pad_sequence(
         [torch.tensor(encoded_dict["attention_mask"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
@@ -720,7 +720,7 @@ def bert_tokenize_for_valid_examples(batch_orginal_sentences, batch_noisy_senten
 
     batch_bert_dict = {"attention_mask": [], "input_ids": [], "token_type_ids": []}
     if len(valid_idxs) > 0:
-        batch_encoded_dicts = [BERT_TOKENIZER.encode_plus(tokens, is_split_into_words=True) for tokens in batch_tokens]
+        batch_encoded_dicts = [BERT_TOKENIZER.encode_plus(tokens) for tokens in batch_tokens]
         batch_attention_masks = pad_sequence(
             [torch.tensor(encoded_dict["attention_mask"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
             padding_value=0)
@@ -736,33 +736,89 @@ def bert_tokenize_for_valid_examples(batch_orginal_sentences, batch_noisy_senten
 
     return batch_orginal_sentences, batch_noisy_sentences, batch_bert_dict, batch_splits
 
+def get_subtokens(tokens, start_index):
+    """Get the first word after start index"""
+    result = [tokens[start_index]]
+
+    # Find indices of tokens after start_index that start with '##'
+    mask = np.char.startswith(tokens[start_index + 1:], '##')
+
+    # Find the first False (non-## token) in the mask
+    # Else happens if the rest of the tokens are one word
+    non_subtoken_indices = np.where(~mask)[0]
+    end_idx = non_subtoken_indices[0] if len(non_subtoken_indices) > 0 else len(mask)
+
+    result.extend(tokens[start_index + 1:start_index + 1 + end_idx])
+    return np.array(result)
 
 def fix_spaces(orig_string :str, pred_string :str) -> str:
-    tokens_mapping = BERT_TOKENIZER(orig_string, return_offsets_mapping=True)
-    original_offsets = tokens_mapping['offset_mapping']
+    """
+    Attempts to add spaces back at original places after prediction based on tokenization of the original sentence
+    Does not work all the time, but unless the model hallucinates new words, it is kind of reliable
+    """
+    tokenizer = transformers.BertTokenizerFast.from_pretrained('bert-base-cased')
+    tokenizer.do_basic_tokenize = True
+    tokenizer.tokenize_chinese_chars = False
 
-    pretok_sent = []
-    offsets_merged = []
-    for token, offset in zip(BERT_TOKENIZER.tokenize(pred_string), original_offsets[1:-1]):
+    original_offsets = tokenizer(orig_string, return_offsets_mapping=True)['offset_mapping']
+    tokenization = np.array(tokenizer.tokenize(pred_string))
+    token_offsets = np.array(original_offsets[1:-1])  # first and last offsets are [CLS] and [SEP]
+    # Pre-allocate arrays
+    pretok_sent = np.empty(len(tokenization), dtype=object)
+    offsets_merged = np.empty((len(tokenization), 2), dtype=int)
+
+    idx_offset = 0
+    out_idx = 0
+    in_row = 0
+
+    care = False
+    if len(tokenization) != len(original_offsets):
+        in_tok = np.array(tokenizer.tokenize(orig_string))
+        care = True
+
+    i = 0
+    while i < len(tokenization):
+        token = tokenization[i]
+
         if token.startswith("##"):
-            pretok_sent[-1] = pretok_sent[-1] + token[2:]
-            offsets_merged[-1] = (offsets_merged[-1][0], offset[1])
+            in_row += 1
+            pretok_sent[out_idx - 1] = pretok_sent[out_idx - 1] + token[2:]
+            offsets_merged[out_idx - 1, 1] = token_offsets[i + idx_offset, 1]
         else:
-            pretok_sent.append(token)
-            offsets_merged.append(offset)
-    # first and last offsets are [CLS] and [SEP]
-    offsets = np.array(offsets_merged)
+            if care and in_row >= 1:
+                # check if the previous merged token has correct offsets
+                start = i - idx_offset - in_row - 1
+                word = get_subtokens(in_tok, start)
+                orig_toks = tokenizer.tokenize(''.join(word.replace('##', '') for word in word))
+
+                if len(orig_toks) != in_row + 1:
+                    # fix the offsets
+                    for _ in range(len(orig_toks) - (in_row + 1)):
+                        offsets_merged[out_idx - 1, 1] = token_offsets[i + idx_offset, 1]
+                        idx_offset += 1
+                in_row = 0
+
+            # handle the new token
+            pretok_sent[out_idx] = token
+            offsets_merged[out_idx] = token_offsets[i + idx_offset]
+            out_idx += 1
+        i += 1
+
+    # Truncate arrays to actual size
+    pretok_sent = pretok_sent[:out_idx]
+    offsets_merged = offsets_merged[:out_idx]
+
+    next_starts = np.roll(offsets_merged[:, 0], -1)[:-1]
+    current_ends = offsets_merged[:-1, 1]
+    mask = next_starts > current_ends
     # boolean mask checking if the offsets align or next start index is greater than previous end
     # indicating space in the original text
-    mask = offsets[1:, 0] > offsets[:-1, 1]
-    mask = np.append(mask, False) # there is no space after the text
+    mask = np.append(mask, False)
     tokens_arr = np.array(pretok_sent)
     # add spaces back at corresponding places
-    tokens_with_space = np.where(mask, tokens_arr + " ", tokens_arr)
+    tokens_with_space = np.where(mask, np.char.add(pretok_sent, ' '), pretok_sent)
     reconstructed_text = "".join(tokens_with_space)
     return reconstructed_text
-
-
 ################################################
 # <-----
 ################################################

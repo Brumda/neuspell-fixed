@@ -71,11 +71,12 @@ class CorrectorSubwordBert(Corrector):
 
     def correct_string(self, mystring: str, return_all=False) -> str:
         x = self.correct_strings([mystring], return_all=return_all)
-        correct_spaces_text = fix_spaces(mystring, x[0])
+        correct_spaces_text = fix_spaces(mystring, x[0][0] if return_all else x[0])
         if return_all:
             return x[0][0], x[1][0]
         else:
             return correct_spaces_text
+            # return x[0]
 
     def correct_strings(self, mystrings: List[str], return_all=False) -> List[str]:
         self.__model_status()
