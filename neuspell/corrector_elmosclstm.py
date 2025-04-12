@@ -168,6 +168,7 @@ class CorrectorElmoSCLstm(Corrector):
         # running stats
         max_dev_acc, argmax_dev_acc = -1, -1
         patience = 100
+        best_val_loss = None
 
         # Create an optimizer
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
@@ -188,7 +189,7 @@ class CorrectorElmoSCLstm(Corrector):
         progress_write_file.flush()
 
         # train and eval
-        for epoch_id in range(START_EPOCH+1, N_EPOCHS + START_EPOCH + 1):
+        for epoch_id in range(START_EPOCH + 1, N_EPOCHS + START_EPOCH + 1):
             e_st_time = time.time()
             # check for patience
             if (epoch_id - argmax_dev_acc) > patience:
@@ -247,8 +248,8 @@ class CorrectorElmoSCLstm(Corrector):
                 #             [time.time() - st_time, batch_loss, train_loss / (batch_id + 1), batch_acc,
                 #              train_acc / train_acc_count])
                 if use_wandb: wandb.log({f"Batch Loss e_{epoch_id}": batch_loss,
-                           f"Batch Loss all":          batch_loss,
-                           f"Batch Accuracy all":      batch_acc})
+                                         f"Batch Loss all":          batch_loss,
+                                         f"Batch Accuracy all":      batch_acc})
                 if batch_id == 0 or (batch_id + 1) % 5000 == 0:
                     nb = int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE))
                     progress_write_file.write(f"{batch_id + 1}/{nb}\n")
@@ -257,7 +258,7 @@ class CorrectorElmoSCLstm(Corrector):
                     progress_write_file.flush()
             print(f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)}")
             if use_wandb: wandb.log({f"Train_loss": train_loss / (batch_id + 1),
-                       f"Train time": time.time() - e_st_time})
+                                     f"Train time": time.time() - e_st_time})
             try:
                 # valid loss
                 valid_loss = 0.
@@ -303,10 +304,13 @@ class CorrectorElmoSCLstm(Corrector):
                                 f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
                         progress_write_file.flush()
                 if use_wandb: wandb.log({f"Valid_loss": valid_loss / (batch_id + 1),
-                                         f"Valid_acc":  valid_acc})
-                print(f"Valid acc: {valid_acc}\nmax dev acc: {max_dev_acc}\nvalid loss: {valid_loss}")
+                                         f"Valid_acc":  valid_acc / (batch_id + 1)})
+                print(
+                    f"Valid acc: {valid_acc / (batch_id + 1)}\nmax dev acc: {max_dev_acc}\nvalid loss: {valid_loss / (batch_id + 1)}")
                 # save model, optimizer and test_predictions if val_acc is improved
-                if valid_acc >= max_dev_acc:
+                if best_val_loss is None or best_val_loss > valid_acc / (batch_id + 1):
+                    if best_val_loss:
+                        print(f"Improved from {best_val_loss:.6f} -----> {valid_acc / (batch_id + 1):.6f}")
                     # to file
                     # name = "model-epoch{}.pth.tar".format(epoch_id)
                     name = "model.pth.tar"
@@ -324,6 +328,7 @@ class CorrectorElmoSCLstm(Corrector):
                     if use_wandb: wandb.log({f"Model saved at epoch": epoch_id})
                     # re-assign
                     max_dev_acc, argmax_dev_acc = valid_acc, epoch_id
+                    best_val_loss = valid_loss / (batch_id + 1)
 
             except Exception as e:
                 temp_folder = os.path.join(CHECKPOINT_PATH, "temp")

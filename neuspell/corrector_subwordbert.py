@@ -160,6 +160,7 @@ class CorrectorSubwordBert(Corrector):
         # running stats
         max_dev_acc, argmax_dev_acc = -1, -1
         patience = 100
+        best_val_loss = None
 
         # Create an optimizer
         param_optimizer = list(model.named_parameters())
@@ -188,7 +189,7 @@ class CorrectorSubwordBert(Corrector):
         progress_write_file.flush()
 
         # train and eval
-        for epoch_id in range(START_EPOCH+1, N_EPOCHS + START_EPOCH + 1):
+        for epoch_id in range(START_EPOCH + 1, N_EPOCHS + START_EPOCH + 1):
             e_st_time = time.time()
             # check for patience
             if (epoch_id - argmax_dev_acc) > patience:
@@ -325,12 +326,14 @@ class CorrectorSubwordBert(Corrector):
                             f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
                     progress_write_file.flush()
             if use_wandb: wandb.log({f"Valid_loss": valid_loss / (batch_id + 1),
-                                     f"Valid_acc":  valid_acc})
-            print(f"Valid acc: {valid_acc}\nmax dev acc: {max_dev_acc}\nvalid loss: {valid_loss}")
+                                     f"Valid_acc":  valid_acc / (batch_id + 1)})
+            print(
+                f"Valid acc: {valid_acc / (batch_id + 1)}\nmax dev acc: {max_dev_acc}\nvalid loss: {valid_loss / (batch_id + 1)}")
             # save model, optimizer and test_predictions if val_acc is improved
-            if valid_acc >= max_dev_acc:
+            if best_val_loss is None or best_val_loss > valid_acc / (batch_id + 1):
+                if best_val_loss:
+                    print(f"Improved from {best_val_loss:.6f} -----> {valid_acc / (batch_id + 1):.6f}")
                 # to file
-                # name = "model-epoch{epoch_id}.pth.tar"
                 name = "model.pth.tar"
                 torch.save({
                         'epoch_id':             epoch_id,
@@ -345,6 +348,7 @@ class CorrectorSubwordBert(Corrector):
 
                 # re-assign
                 max_dev_acc, argmax_dev_acc = valid_acc, epoch_id
+                best_val_loss = valid_loss / (batch_id + 1)
 
         print(f"Model and logs saved at {CHECKPOINT_PATH}")
 
