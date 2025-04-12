@@ -134,7 +134,7 @@ class CorrectorElmoSCLstm(Corrector):
         return get_model_nparams(self.model)
 
     def finetune(self, clean_file, corrupt_file, valid_cl_file=None, valid_corr_file=None, validation_split=0.2,
-                 n_epochs=2, new_vocab_list=[]):
+                 n_epochs=2, new_vocab_list=[], use_wandb=False):
         if new_vocab_list:
             raise NotImplementedError("Do not currently support modifying output vocabulary of the models")
 
@@ -157,9 +157,9 @@ class CorrectorElmoSCLstm(Corrector):
         TRAIN_BATCH_SIZE, VALID_BATCH_SIZE = 16, 32
         GRADIENT_ACC = 4
         DEVICE = self.device
-        START_EPOCH, N_EPOCHS = self.epoch + 1, n_epochs + self.epoch
+        START_EPOCH, N_EPOCHS = self.epoch, n_epochs
         CHECKPOINT_PATH = os.path.join(ARXIV_CHECKPOINTS["elmoscrnn-probwordnoise"],
-                                       f"finetuned_model/epoch_{START_EPOCH:02d}")
+                                       f"finetuned_model/")
         VOCAB_PATH = os.path.join(CHECKPOINT_PATH, "vocab.pkl")
         if not os.path.exists(CHECKPOINT_PATH):
             os.makedirs(CHECKPOINT_PATH)
@@ -188,7 +188,7 @@ class CorrectorElmoSCLstm(Corrector):
         progress_write_file.flush()
 
         # train and eval
-        for epoch_id in range(START_EPOCH, N_EPOCHS + 1):
+        for epoch_id in range(START_EPOCH+1, N_EPOCHS + START_EPOCH + 1):
             e_st_time = time.time()
             # check for patience
             if (epoch_id - argmax_dev_acc) > patience:
@@ -246,8 +246,9 @@ class CorrectorElmoSCLstm(Corrector):
                 #             ["batch_time", "batch_loss", "avg_batch_loss", "batch_acc", "avg_batch_acc"],
                 #             [time.time() - st_time, batch_loss, train_loss / (batch_id + 1), batch_acc,
                 #              train_acc / train_acc_count])
-                wandb.log({f"Batch Loss e_{epoch_id}": batch_loss})
-                wandb.log({f"Batch Loss all": batch_loss, f"Batch Accuracy all": batch_acc})
+                if use_wandb: wandb.log({f"Batch Loss e_{epoch_id}": batch_loss,
+                           f"Batch Loss all":          batch_loss,
+                           f"Batch Accuracy all":      batch_acc})
                 if batch_id == 0 or (batch_id + 1) % 5000 == 0:
                     nb = int(np.ceil(len(train_data) / TRAIN_BATCH_SIZE))
                     progress_write_file.write(f"{batch_id + 1}/{nb}\n")
@@ -255,7 +256,7 @@ class CorrectorElmoSCLstm(Corrector):
                             f"batch_time: {time.time() - st_time}, avg_batch_loss: {train_loss / (batch_id + 1)}, avg_batch_acc: {train_acc / (batch_id + 1)}\n")
                     progress_write_file.flush()
             print(f"\nEpoch {epoch_id} train_loss: {train_loss / (batch_id + 1)}")
-            wandb.log({f"Train_loss": train_loss / (batch_id + 1),
+            if use_wandb: wandb.log({f"Train_loss": train_loss / (batch_id + 1),
                        f"Train time": time.time() - e_st_time})
             try:
                 # valid loss
@@ -301,8 +302,9 @@ class CorrectorElmoSCLstm(Corrector):
                         progress_write_file.write(
                                 f"batch_time: {time.time() - st_time}, avg_batch_loss: {valid_loss / (batch_id + 1)}, avg_batch_acc: {valid_acc / (batch_id + 1)}\n")
                         progress_write_file.flush()
-                print(f"\nEpoch {epoch_id} valid_loss: {valid_loss / (batch_id + 1)}")
-                wandb.log({f"Valid_loss": valid_loss / (batch_id + 1)})
+                if use_wandb: wandb.log({f"Valid_loss": valid_loss / (batch_id + 1),
+                                         f"Valid_acc":  valid_acc})
+                print(f"Valid acc: {valid_acc}\nmax dev acc: {max_dev_acc}\nvalid loss: {valid_loss}")
                 # save model, optimizer and test_predictions if val_acc is improved
                 if valid_acc >= max_dev_acc:
                     # to file
@@ -319,7 +321,7 @@ class CorrectorElmoSCLstm(Corrector):
                             os.path.join(CHECKPOINT_PATH, name))
                     print("Model saved at {} in epoch {}".format(os.path.join(CHECKPOINT_PATH, name), epoch_id))
                     save_vocab_dict(VOCAB_PATH, vocab)
-                    wandb.log({f"Model saved at epoch": epoch_id})
+                    if use_wandb: wandb.log({f"Model saved at epoch": epoch_id})
                     # re-assign
                     max_dev_acc, argmax_dev_acc = valid_acc, epoch_id
 
