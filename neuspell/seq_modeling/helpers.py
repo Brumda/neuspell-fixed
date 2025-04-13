@@ -795,7 +795,7 @@ def fix_spaces(orig_string :str, pred_string :str) -> str:
         else:
             if in_row >= 1:
                 # check if the previous merged token has correct offsets
-                start = i - idx_offset - in_row - 1 + delta
+                start = i + idx_offset - in_row - 1 + delta
                 word = get_subtokens(in_tok, start)
                 # print(f"Fixed token: {pretok_sent[out_idx - 1]}")
                 # print(f"Next Token: {token}")
@@ -846,7 +846,7 @@ def fix_spaces(orig_string :str, pred_string :str) -> str:
     mask = np.append(mask, False)
     tokens_arr = np.array(pretok_sent)
     # add spaces back at corresponding places
-    tokens_with_space = np.where(mask, np.char.add(pretok_sent, ' '), pretok_sent)
+    tokens_with_space = np.where(mask, np.char.add(tokens_arr, ' '), tokens_arr)
     reconstructed_text = "".join(tokens_with_space)
     return reconstructed_text
 ################################################
