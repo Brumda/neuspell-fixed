@@ -69,14 +69,13 @@ class CorrectorSubwordBert(Corrector):
     def correct(self, x):
         return self.correct_string(x)
 
-    def correct_string(self, mystring: str, return_all=False) -> str:
+    def correct_string(self, mystring: str, correct_spaces=True, return_all=False) -> str:
         x = self.correct_strings([mystring], return_all=return_all)
-        correct_spaces_text = fix_spaces(mystring, x[0][0] if return_all else x[0])
+        if correct_spaces: correct_spaces_text = fix_spaces(mystring, x[0][0] if return_all else x[0])
         if return_all:
             return x[0][0], x[1][0]
         else:
-            return correct_spaces_text
-            # return x[0]
+            return correct_spaces_text if correct_spaces else x[0]
 
     def correct_strings(self, mystrings: List[str], return_all=False) -> List[str]:
         self.__model_status()
@@ -330,7 +329,7 @@ class CorrectorSubwordBert(Corrector):
             print(
                 f"Valid acc: {valid_acc / (batch_id + 1)}\nmax dev acc: {max_dev_acc}\nvalid loss: {valid_loss / (batch_id + 1)}")
             # save model, optimizer and test_predictions if val_acc is improved
-            if best_val_loss is None or best_val_loss > valid_acc / (batch_id + 1):
+            if best_val_loss is None or best_val_loss > valid_loss / (batch_id + 1):
                 if best_val_loss:
                     print(f"Improved from {best_val_loss:.6f} -----> {valid_acc / (batch_id + 1):.6f}")
                 # to file

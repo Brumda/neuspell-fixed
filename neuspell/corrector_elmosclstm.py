@@ -308,9 +308,9 @@ class CorrectorElmoSCLstm(Corrector):
                 print(
                     f"Valid acc: {valid_acc / (batch_id + 1)}\nmax dev acc: {max_dev_acc}\nvalid loss: {valid_loss / (batch_id + 1)}")
                 # save model, optimizer and test_predictions if val_acc is improved
-                if best_val_loss is None or best_val_loss > valid_acc / (batch_id + 1):
+                if best_val_loss is None or best_val_loss > valid_loss / (batch_id + 1):
                     if best_val_loss:
-                        print(f"Improved from {best_val_loss:.6f} -----> {valid_acc / (batch_id + 1):.6f}")
+                        print(f"Improved from {best_val_loss:.6f} -----> {valid_loss / (batch_id + 1):.6f}")
                     # to file
                     # name = "model-epoch{}.pth.tar".format(epoch_id)
                     name = "model.pth.tar"
