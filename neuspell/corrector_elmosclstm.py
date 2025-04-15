@@ -133,15 +133,15 @@ class CorrectorElmoSCLstm(Corrector):
         self.__model_status()
         return get_model_nparams(self.model)
 
-    def finetune(self, clean_file, corrupt_file, valid_cl_file=None, valid_corr_file=None, validation_split=0.2,
+    def finetune(self, clean_file, corrupt_file, dev_cl_file=None, dev_corr_file=None, validation_split=0.2,
                  n_epochs=2, new_vocab_list=[], use_wandb=False):
         if new_vocab_list:
             raise NotImplementedError("Do not currently support modifying output vocabulary of the models")
 
         # load data and split in train-validation
         train_data = load_data("", clean_file, corrupt_file)
-        if valid_cl_file:
-            valid_data = load_data("", valid_cl_file, valid_corr_file)
+        if dev_cl_file:
+            valid_data = load_data("", dev_cl_file, dev_corr_file)
         else:
             train_data, valid_data = train_validation_split(train_data, 0.8, seed=11690)
         print("len of train and test data: ", len(train_data), len(valid_data))
