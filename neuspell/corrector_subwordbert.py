@@ -71,7 +71,9 @@ class CorrectorSubwordBert(Corrector):
 
     def correct_string(self, mystring: str, correct_spaces=True, return_all=False) -> str:
         x = self.correct_strings([mystring], return_all=return_all)
-        if correct_spaces: correct_spaces_text = fix_spaces(mystring, x[0][0] if return_all else x[0])
+        if correct_spaces:
+            correct_spaces_text = fix_spaces(mystring, x[0][0] if return_all else x[0])
+
         if return_all:
             return x[0][0], x[1][0]
         else:
@@ -327,7 +329,7 @@ class CorrectorSubwordBert(Corrector):
             if use_wandb: wandb.log({f"Valid_loss": valid_loss / (batch_id + 1),
                                      f"Valid_acc":  valid_acc / (batch_id + 1)})
             print(
-                f"Valid acc: {valid_acc / (batch_id + 1)}\nmax dev acc: {max_dev_acc}\nvalid loss: {valid_loss / (batch_id + 1)}")
+                    f"Valid acc: {valid_acc / (batch_id + 1)}\nmax dev acc: {max_dev_acc}\nvalid loss: {valid_loss / (batch_id + 1)}")
             # save model, optimizer and test_predictions if val_acc is improved
             if best_val_loss is None or best_val_loss > valid_loss / (batch_id + 1):
                 if best_val_loss:
