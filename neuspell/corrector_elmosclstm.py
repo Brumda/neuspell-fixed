@@ -8,7 +8,7 @@ import wandb
 
 from .commons import ARXIV_CHECKPOINTS, Corrector, DEFAULT_DATA_PATH, spacy_tokenizer
 from .seq_modeling.downloads import download_pretrained_model
-from .seq_modeling.helpers import batch_accuracy_func, batch_iter, labelize, train_validation_split
+from .seq_modeling.helpers import batch_accuracy_func, batch_iter, detokenize_elmo, labelize, train_validation_split
 from .seq_modeling.helpers import get_model_nparams, load_data, load_vocab_dict, save_vocab_dict, sclstm_tokenize
 from .seq_modeling.util import get_module_or_attr, is_module_available
 
@@ -76,12 +76,14 @@ class CorrectorElmoSCLstm(Corrector):
     def correct(self, x):
         return self.correct_string(x)
 
-    def correct_string(self, mystring: str, return_all=False) -> str:
+    def correct_string(self, mystring: str, correct_spaces=True, return_all=False) -> str:
         x = self.correct_strings([mystring], return_all=return_all)
+        if correct_spaces:
+            correct_spaces_text = detokenize_elmo(x[0][0] if return_all else x[0])
         if return_all:
             return x[0][0], x[1][0]
         else:
-            return x[0]
+            return correct_spaces_text if correct_spaces else x[0]
 
     def correct_strings(self, mystrings: List[str], return_all=False) -> List[str]:
         self.__model_status()
@@ -90,6 +92,7 @@ class CorrectorElmoSCLstm(Corrector):
         data = [(line, line) for line in mystrings]
         batch_size = 4 if self.device == "cpu" else 16
         return_strings = model_predictions(self.model, data, self.vocab, device=self.device, batch_size=batch_size)
+
         if return_all:
             return mystrings, return_strings
         else:

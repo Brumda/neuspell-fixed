@@ -2,6 +2,7 @@ import os
 import pickle
 import sys
 from math import log
+from string import punctuation
 
 import numpy as np
 import torch
@@ -852,3 +853,22 @@ def fix_spaces(orig_string :str, pred_string :str) -> str:
 ################################################
 # <-----
 ################################################
+no_space_before = set(punctuation) | {"”", "’", ")", "]", "}", "…"}
+no_space_after = {"“", "‘", "(", "[", "{"}
+
+
+def detokenize_elmo(tokenized_text: str) -> str:
+    tokens = tokenized_text.split()
+    output = ""
+    for i, token in enumerate(tokens):
+        if token in no_space_before:
+            output += token
+        elif token in no_space_after:
+            if output and not output[-1].isspace():
+                output += " "
+            output += token
+        else:
+            if output and not output[-1].isspace():
+                output += " "
+            output += token
+    return output.strip()
