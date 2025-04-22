@@ -853,22 +853,45 @@ def fix_spaces(orig_string :str, pred_string :str) -> str:
 ################################################
 # <-----
 ################################################
-no_space_before = set(punctuation) | {"”", "’", ")", "]", "}", "…"}
-no_space_after = {"“", "‘", "(", "[", "{"}
 
 
 def detokenize_elmo(tokenized_text: str) -> str:
     tokens = tokenized_text.split()
-    output = ""
+
+    no_space_before = set(punctuation) - {"="} | {"”", "’", "…",}
+    no_space_after = {"“", "‘", "(", "[", "{",  "_", "-"}
+    quote_chars = {'"', "'"}
+
+    output_parts = []
+    quote_counts = {q: 0 for q in quote_chars}
+    suppress_next_space = False
+
     for i, token in enumerate(tokens):
-        if token in no_space_before:
-            output += token
-        elif token in no_space_after:
-            if output and not output[-1].isspace():
-                output += " "
-            output += token
+        # Handle quotes
+        if token in quote_chars:
+            quote_counts[token] += 1
+            is_opening = (quote_counts[token] % 2 == 1)
+
+            if is_opening:
+                if output_parts and not output_parts[-1][-1].isspace():
+                    output_parts.append(" ")
+                output_parts.append(token)
+                suppress_next_space = True  # add the next word directly
+            else:
+                output_parts.append(token)
+                suppress_next_space = False
+            continue
+
+        if suppress_next_space:
+            output_parts.append(token)
+            suppress_next_space = False
+        elif i == 0:
+            output_parts.append(token)
+        elif tokens[i - 1] in no_space_after:
+            output_parts.append(token)
+        elif token in no_space_before:
+            output_parts.append(token)
         else:
-            if output and not output[-1].isspace():
-                output += " "
-            output += token
-    return output.strip()
+            output_parts.append(" " + token)
+
+    return "".join(output_parts).strip()
