@@ -781,45 +781,34 @@ def fix_spaces(orig_string :str, pred_string :str) -> str:
         token = tokenization[i]
         in_bounds = i + idx_offset < len(token_offsets)
         if token.startswith("##"):
-            # Continuation of previous token
+            # Continuation of the previous token
             in_row += 1
             # merge
             pretok_sent[out_idx - 1] = pretok_sent[out_idx - 1] + token[2:]
             if in_bounds:
                 old_offset = offsets_merged[out_idx - 1, 1]
                 offsets_merged[out_idx - 1, 1] = token_offsets[i + idx_offset, 1]
-                # print(old_offset, offsets_merged[out_idx - 1])
             else:
                 print("out of bounds")
 
-            # print(f"SubToken starting: {token}")
         else:
             if in_row >= 1:
                 # check if the previous merged token has correct offsets
                 start = i + idx_offset - in_row - 1 + delta
                 word = get_subtokens(in_tok, start)
-                # print(f"Fixed token: {pretok_sent[out_idx - 1]}")
-                # print(f"Next Token: {token}")
-                # print(f"Word: {word}")
                 orig_toks = tokenizer.tokenize(''.join(tok.replace('##', '') for tok in word))
-                # print(f"Orig_toks: {orig_toks}")
 
                 if len(orig_toks) > in_row + 1:
-                    # print("changing offsets")
                     # fix the offsets
                     for _ in range(len(orig_toks) - (in_row + 1)):
                         offsets_merged[out_idx - 1, 1] = token_offsets[i + idx_offset, 1]
                         idx_offset += 1
                 elif len(orig_toks) < in_row + 1:
-                    # print("new is more than orig")
-                    # print(len(orig_toks), in_row + 1)
                     new_delta = len(orig_toks) - (in_row + 1)
                     delta += new_delta
                     offsets_merged[out_idx - 1, 1] = old_offset
                     idx_offset += new_delta
-                    # print(delta)
 
-                # print(80 * "-")
 
                 in_row = 0
 
@@ -866,14 +855,15 @@ def detokenize_elmo(tokenized_text: str) -> str:
     quote_counts = {q: 0 for q in quote_chars}
     suppress_next_space = False
 
-    for i, token in enumerate(tokens):
+    for token in tokens:
         # Handle quotes
         if token in quote_chars:
             quote_counts[token] += 1
             is_opening = (quote_counts[token] % 2 == 1)
 
             if is_opening:
-                if output_parts and not output_parts[-1][-1].isspace():
+                if (output_parts and
+                        not output_parts[-1][-1].isspace()):
                     output_parts.append(" ")
                 output_parts.append(token)
                 suppress_next_space = True  # add the next word directly
@@ -883,15 +873,15 @@ def detokenize_elmo(tokenized_text: str) -> str:
             continue
 
         if suppress_next_space:
-            output_parts.append(token)
             suppress_next_space = False
-        elif i == 0:
             output_parts.append(token)
-        elif tokens[i - 1] in no_space_after:
-            output_parts.append(token)
-        elif token in no_space_before:
+        elif (len(output_parts) == 0 or
+              output_parts[-1] in no_space_after or
+              token in no_space_before):
+
             output_parts.append(token)
         else:
+            print(token, output_parts[-1])
             output_parts.append(" " + token)
 
     return "".join(output_parts).strip()
