@@ -881,7 +881,6 @@ def detokenize_elmo(tokenized_text: str) -> str:
 
             output_parts.append(token)
         else:
-            print(token, output_parts[-1])
             output_parts.append(" " + token)
 
     return "".join(output_parts).strip()
