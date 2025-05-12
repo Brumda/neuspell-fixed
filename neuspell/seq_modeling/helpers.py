@@ -778,7 +778,6 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
     max_tokens = max(len(tokenization), len(original_offsets))
     pretok_sent = np.empty(max_tokens, dtype=object)
     offsets_merged = np.empty((max_tokens, 2), dtype=int)
-
     i = 0
     delta = 0
     old_offset = 0
@@ -799,10 +798,9 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
         else:
             if in_row >= 1:
                 # check if the previous merged token has correct offsets
-                start = i + idx_offset - in_row - 1 + delta
+                start = i + idx_offset - in_row + delta - 1
                 word = get_subtokens(in_tok, start)
                 orig_toks = tokenizer.tokenize(''.join(tok.replace('##', '') for tok in word))
-
                 if len(orig_toks) > in_row + 1:
                     # fix the offsets
                     for _ in range(len(orig_toks) - (in_row + 1)):
@@ -820,6 +818,11 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
             pretok_sent[out_idx] = token
 
             if in_bounds:
+                if (i + 1 < len(tokenization) and
+                        len(word := get_subtokens(in_tok, i + idx_offset + delta)) > 1 and
+                        not tokenization[i + 1].startswith("##")):
+                    orig_toks = tokenizer.tokenize(''.join(tok.replace('##', '') for tok in word))
+                    idx_offset += len(orig_toks) - 1
                 offsets_merged[out_idx] = token_offsets[i + idx_offset]
             else:
                 prev_end = offsets_merged[out_idx - 1, 1]
