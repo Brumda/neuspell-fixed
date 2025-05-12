@@ -1,6 +1,7 @@
 import os
 import pickle
 import sys
+from itertools import chain
 from math import log
 from string import punctuation
 
@@ -211,18 +212,18 @@ def get_tokens(data,
 
     # return dict
     token_freq = list(sorted(token_freq.items(), key=lambda item: item[1], reverse=True))
-    return_dict = {"token2idx": token2idx,
-                   "idx2token": idx2token,
+    return_dict = {"token2idx":  token2idx,
+                   "idx2token":  idx2token,
                    "token_freq": token_freq,
-                   "pad_token": pad_token,
-                   "unk_token": unk_token,
-                   "eos_token": eos_token
+                   "pad_token":  pad_token,
+                   "unk_token":  unk_token,
+                   "eos_token":  eos_token
                    }
     # new
     return_dict.update({
-        "pad_token_idx": token2idx[pad_token],
-        "unk_token_idx": token2idx[unk_token],
-        "eos_token_idx": token2idx[eos_token],
+            "pad_token_idx": token2idx[pad_token],
+            "unk_token_idx": token2idx[unk_token],
+            "eos_token_idx": token2idx[eos_token],
     })
 
     # load_char_tokens
@@ -312,11 +313,11 @@ def char_tokenize(batch_sentences, vocab, return_nchars=False):
         char_idxs = [[func_word2charids(word) for word in sent.split()] for sent in batch_sentences]
         char_padding_idx = chartoken2idx[char_pad_token]
         tokenized_output = [pad_sequence(
-            [torch.as_tensor(list_of_wordidxs).long() for list_of_wordidxs in list_of_lists],
-            batch_first=True,
-            padding_value=char_padding_idx
+                [torch.as_tensor(list_of_wordidxs).long() for list_of_wordidxs in list_of_lists],
+                batch_first=True,
+                padding_value=char_padding_idx
         ) \
-            for list_of_lists in char_idxs]
+                for list_of_lists in char_idxs]
         # dim [nsentences]
         nwords = torch.tensor([len(sentlevel) for sentlevel in tokenized_output]).long()
         # dim [nsentences,nwords_per_sentence]
@@ -505,11 +506,11 @@ def untokenize_without_unks3(batch_predictions, batch_predictions_probs, batch_l
 
     k_batch_predictions = \
         [
-            [" ".join([idx2token[idx] if idx != unktoken else clean_[i] for i, idx in
-                       enumerate([p[ip] for p, ip in zip(pred_[:len_], pred_ind_[:len_])])]) \
-             for pred_, pred_ind_, len_, clean_ in
-             zip(batch_predictions, batch_predictions_inds, batch_lengths, batch_clean_sentences)]
-            for _, batch_predictions_inds in k_batch_predictions.items()
+                [" ".join([idx2token[idx] if idx != unktoken else clean_[i] for i, idx in
+                           enumerate([p[ip] for p, ip in zip(pred_[:len_], pred_ind_[:len_])])]) \
+                 for pred_, pred_ind_, len_, clean_ in
+                 zip(batch_predictions, batch_predictions_inds, batch_lengths, batch_clean_sentences)]
+                for _, batch_predictions_inds in k_batch_predictions.items()
         ]
     # print(k_batch_predictions)
     # raise Exception("debug...")
@@ -666,16 +667,16 @@ def bert_tokenize(batch_sentences):
     batch_encoded_dicts = [BERT_TOKENIZER.encode_plus(tokens) for tokens in batch_tokens]
 
     batch_attention_masks = pad_sequence(
-        [torch.tensor(encoded_dict["attention_mask"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
-        padding_value=0)
+            [torch.tensor(encoded_dict["attention_mask"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
+            padding_value=0)
     batch_input_ids = pad_sequence([torch.tensor(encoded_dict["input_ids"]) for encoded_dict in batch_encoded_dicts],
                                    batch_first=True, padding_value=0)
     batch_token_type_ids = pad_sequence(
-        [torch.tensor(encoded_dict["token_type_ids"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
-        padding_value=0)
+            [torch.tensor(encoded_dict["token_type_ids"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
+            padding_value=0)
 
     batch_bert_dict = {"attention_mask": batch_attention_masks,
-                       "input_ids": batch_input_ids,
+                       "input_ids":      batch_input_ids,
                        "token_type_ids": batch_token_type_ids}
 
     # if len(batch_chunks)>0:
@@ -723,19 +724,22 @@ def bert_tokenize_for_valid_examples(batch_orginal_sentences, batch_noisy_senten
     if len(valid_idxs) > 0:
         batch_encoded_dicts = [BERT_TOKENIZER.encode_plus(tokens) for tokens in batch_tokens]
         batch_attention_masks = pad_sequence(
-            [torch.tensor(encoded_dict["attention_mask"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
-            padding_value=0)
+                [torch.tensor(encoded_dict["attention_mask"]) for encoded_dict in batch_encoded_dicts],
+                batch_first=True,
+                padding_value=0)
         batch_input_ids = pad_sequence(
-            [torch.tensor(encoded_dict["input_ids"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
-            padding_value=0)
+                [torch.tensor(encoded_dict["input_ids"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
+                padding_value=0)
         batch_token_type_ids = pad_sequence(
-            [torch.tensor(encoded_dict["token_type_ids"]) for encoded_dict in batch_encoded_dicts], batch_first=True,
-            padding_value=0)
+                [torch.tensor(encoded_dict["token_type_ids"]) for encoded_dict in batch_encoded_dicts],
+                batch_first=True,
+                padding_value=0)
         batch_bert_dict = {"attention_mask": batch_attention_masks,
-                           "input_ids": batch_input_ids,
+                           "input_ids":      batch_input_ids,
                            "token_type_ids": batch_token_type_ids}
 
     return batch_orginal_sentences, batch_noisy_sentences, batch_bert_dict, batch_splits
+
 
 def get_subtokens(tokens, start_index):
     """Get the first word after start index"""
@@ -752,7 +756,8 @@ def get_subtokens(tokens, start_index):
     result.extend(tokens[start_index + 1:start_index + 1 + end_idx])
     return np.array(result)
 
-def fix_spaces(orig_string :str, pred_string :str) -> str:
+
+def fix_spaces(orig_string: str, pred_string: str) -> str:
     """
     Attempts to add spaces back at original places after prediction based on tokenization of the original sentence
     Does not work all the time, but unless the model hallucinates new words, it is kind of reliable
@@ -809,7 +814,6 @@ def fix_spaces(orig_string :str, pred_string :str) -> str:
                     offsets_merged[out_idx - 1, 1] = old_offset
                     idx_offset += new_delta
 
-
                 in_row = 0
 
             # handle the new token
@@ -839,18 +843,22 @@ def fix_spaces(orig_string :str, pred_string :str) -> str:
     tokens_with_space = np.where(mask, np.char.add(tokens_arr, ' '), tokens_arr)
     reconstructed_text = "".join(tokens_with_space)
     return reconstructed_text
+
+
 ################################################
 # <-----
 ################################################
 
 
 def detokenize_elmo(tokenized_text: str) -> str:
-    tokens = tokenized_text.split()
+    punct = set(punctuation)
+    no_space_before = punct - {"=", "("} | {"”", "’", "…", }
+    no_space_after = {"“", "‘", "(", "[", "{", "/", "_", "-"}
+    quote_chars = {'"', "'", "`"}
 
-    no_space_before = set(punctuation) - {"="} | {"”", "’", "…",}
-    no_space_after = {"“", "‘", "(", "[", "{",  "_", "-"}
-    quote_chars = {'"', "'"}
-
+    tokens = list(chain.from_iterable(
+            [token] if not all(c in punct for c in token)
+            else list(token) for token in tokenized_text.split()))
     output_parts = []
     quote_counts = {q: 0 for q in quote_chars}
     suppress_next_space = False
@@ -862,8 +870,7 @@ def detokenize_elmo(tokenized_text: str) -> str:
             is_opening = (quote_counts[token] % 2 == 1)
 
             if is_opening:
-                if (output_parts and
-                        not output_parts[-1][-1].isspace()):
+                if output_parts and not output_parts[-1][-1].isspace():
                     output_parts.append(" ")
                 output_parts.append(token)
                 suppress_next_space = True  # add the next word directly
