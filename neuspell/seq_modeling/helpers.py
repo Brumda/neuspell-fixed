@@ -780,7 +780,7 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
     offsets_merged = np.empty((max_tokens, 2), dtype=int)
     i = 0
     delta = 0
-    old_offsets = []
+    old_offset = 0
     while i < len(tokenization):
         token = tokenization[i]
         in_bounds = i + idx_offset < len(token_offsets)
@@ -790,13 +790,13 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
             # merge
             pretok_sent[out_idx - 1] = pretok_sent[out_idx - 1] + token[2:]
             if in_bounds:
-                old_offsets.append(offsets_merged[out_idx - 1, 1])
+                old_offset = offsets_merged[out_idx - 1, 1]
                 offsets_merged[out_idx - 1, 1] = token_offsets[i + idx_offset, 1]
 
         else:
             if in_row >= 1:
                 # check if the previous merged token has correct offsets
-                start = i + idx_offset - in_row + delta - 1
+                start = i + idx_offset - in_row - 1 + delta
                 word = get_subtokens(in_tok, start)
                 if len(word) > in_row + 1:
                     # fix the offsets
@@ -806,11 +806,10 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
                 elif len(word) < in_row + 1:
                     new_delta = len(word) - (in_row + 1)
                     delta += new_delta
-                    offsets_merged[out_idx - 1, 1] = old_offsets[new_delta + 1]
+                    offsets_merged[out_idx - 1, 1] = old_offset
                     idx_offset += new_delta
 
                 in_row = 0
-                old_offsets.clear()
                 in_bounds = i + idx_offset < len(token_offsets)
             # handle the new token
             pretok_sent[out_idx] = token
@@ -821,7 +820,7 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
                     idx_offset += len(word) - 1
                 try:
                     offsets_merged[out_idx] = token_offsets[i + idx_offset]
-                except Exception as e:
+                except IndexError as e:
                     print(f"{e}\nSentence that triggered the exception: {orig_string}")
             else:
                 prev_end = offsets_merged[out_idx - 1, 1]
