@@ -793,7 +793,7 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
                 old_offset = offsets_merged[out_idx - 1, 1]
                 offsets_merged[out_idx - 1, 1] = token_offsets[i + idx_offset, 1]
             else:
-                print("out of bounds")
+                print(f"Out of bounds: {orig_string}")
 
         else:
             if in_row >= 1:
@@ -823,7 +823,14 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
                         not tokenization[i + 1].startswith("##")):
                     orig_toks = tokenizer.tokenize(''.join(tok.replace('##', '') for tok in word))
                     idx_offset += len(orig_toks) - 1
-                offsets_merged[out_idx] = token_offsets[i + idx_offset]
+                try:
+                    offsets_merged[out_idx] = token_offsets[i + idx_offset]
+                except Exception as e:
+                    print(f"Got exception (should be index: {e}")
+                    print(f"Sentence that triggered the exception: {orig_string}")
+                    print(f"Original: {word}")
+                    print(f"Fixed: {token}")
+                    print(f"Offset by: {len(orig_toks) - 1}")
             else:
                 prev_end = offsets_merged[out_idx - 1, 1]
                 token_len = len(token)
