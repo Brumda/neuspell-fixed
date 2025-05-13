@@ -780,7 +780,7 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
     offsets_merged = np.empty((max_tokens, 2), dtype=int)
     i = 0
     delta = 0
-    old_offset = 0
+    old_offsets = []
     while i < len(tokenization):
         token = tokenization[i]
         in_bounds = i + idx_offset < len(token_offsets)
@@ -790,47 +790,39 @@ def fix_spaces(orig_string: str, pred_string: str) -> str:
             # merge
             pretok_sent[out_idx - 1] = pretok_sent[out_idx - 1] + token[2:]
             if in_bounds:
-                old_offset = offsets_merged[out_idx - 1, 1]
+                old_offsets.append(offsets_merged[out_idx - 1, 1])
                 offsets_merged[out_idx - 1, 1] = token_offsets[i + idx_offset, 1]
-            else:
-                print(f"Out of bounds: {orig_string}")
 
         else:
             if in_row >= 1:
                 # check if the previous merged token has correct offsets
                 start = i + idx_offset - in_row + delta - 1
                 word = get_subtokens(in_tok, start)
-                orig_toks = tokenizer.tokenize(''.join(tok.replace('##', '') for tok in word))
-                if len(orig_toks) > in_row + 1:
+                if len(word) > in_row + 1:
                     # fix the offsets
-                    for _ in range(len(orig_toks) - (in_row + 1)):
+                    for _ in range(len(word) - (in_row + 1)):
                         offsets_merged[out_idx - 1, 1] = token_offsets[i + idx_offset, 1]
                         idx_offset += 1
-                elif len(orig_toks) < in_row + 1:
-                    new_delta = len(orig_toks) - (in_row + 1)
+                elif len(word) < in_row + 1:
+                    new_delta = len(word) - (in_row + 1)
                     delta += new_delta
-                    offsets_merged[out_idx - 1, 1] = old_offset
+                    offsets_merged[out_idx - 1, 1] = old_offsets[new_delta + 1]
                     idx_offset += new_delta
 
                 in_row = 0
-
+                old_offsets.clear()
+                in_bounds = i + idx_offset < len(token_offsets)
             # handle the new token
             pretok_sent[out_idx] = token
 
             if in_bounds:
-                if (i + 1 < len(tokenization) and
-                        len(word := get_subtokens(in_tok, i + idx_offset + delta)) > 1 and
-                        not tokenization[i + 1].startswith("##")):
-                    orig_toks = tokenizer.tokenize(''.join(tok.replace('##', '') for tok in word))
-                    idx_offset += len(orig_toks) - 1
+                if (i + 1 < len(tokenization) and len(word := get_subtokens(in_tok, i + idx_offset + delta)) > 1 and not
+                tokenization[i + 1].startswith("##")):
+                    idx_offset += len(word) - 1
                 try:
                     offsets_merged[out_idx] = token_offsets[i + idx_offset]
                 except Exception as e:
-                    print(f"Got exception (should be index: {e}")
-                    print(f"Sentence that triggered the exception: {orig_string}")
-                    print(f"Original: {word}")
-                    print(f"Fixed: {token}")
-                    print(f"Offset by: {len(orig_toks) - 1}")
+                    print(f"{e}\nSentence that triggered the exception: {orig_string}")
             else:
                 prev_end = offsets_merged[out_idx - 1, 1]
                 token_len = len(token)
